@@ -39,7 +39,8 @@ final class GamepadConfigView: NSView {
             ButtonSlot(key: "dpadRight", actionKey: "dpadRight", title: "D-pad Right", group: "nav", trailingText: nil),
             ButtonSlot(key: "start", actionKey: "start", title: l.start, group: "system", trailingText: nil),
             ButtonSlot(key: "select", actionKey: "select", title: l.select, group: "system", trailingText: nil),
-            ButtonSlot(key: "stickL", actionKey: "stickClick", title: l.stickClick, group: "system", trailingText: nil),
+            ButtonSlot(key: "stickL", actionKey: "leftStickClick", title: l.leftStick, group: "system", trailingText: nil),
+            ButtonSlot(key: "stickR", actionKey: "rightStickClick", title: l.rightStick, group: "system", trailingText: nil),
         ]
     }
 
@@ -65,9 +66,9 @@ final class GamepadConfigView: NSView {
             ),
             GroupDescriptor(
                 title: "System & Sticks",
-                subtitle: "Menu buttons and stick press action",
-                slotKeys: ["start", "select", "stickL"],
-                footer: "L3 and R3 share the same runtime action."
+                subtitle: "Menu buttons and stick press actions",
+                slotKeys: ["start", "select", "stickL", "stickR"],
+                footer: nil
             ),
         ]
     }
@@ -100,7 +101,8 @@ final class GamepadConfigView: NSView {
             "rb": mapping.buttonActions.rb,
             "start": mapping.buttonActions.start,
             "select": mapping.buttonActions.select,
-            "stickClick": mapping.buttonActions.stickClick,
+            "leftStickClick": mapping.buttonActions.leftStickClick,
+            "rightStickClick": mapping.buttonActions.rightStickClick,
             "dpadUp": mapping.buttonActions.dpadUp,
             "dpadDown": mapping.buttonActions.dpadDown,
             "dpadLeft": mapping.buttonActions.dpadLeft,
@@ -198,8 +200,10 @@ final class GamepadConfigView: NSView {
 
     func actionForSlot(_ key: String) -> ButtonAction {
         switch key {
-        case "stickL", "stickR":
-            return slotActions["stickClick"] ?? .none
+        case "stickL":
+            return slotActions["leftStickClick"] ?? .none
+        case "stickR":
+            return slotActions["rightStickClick"] ?? .none
         default:
             guard let slot = slot(for: key), let actionKey = slot.actionKey else { return .none }
             return slotActions[actionKey] ?? .none
@@ -313,8 +317,7 @@ private final class ComboKeyPairView: NSView {
     var keyCombo: KeyCombo {
         let modTitle = modifierPopup.titleOfSelectedItem ?? "None"
         let keyTitle = keyPopup.titleOfSelectedItem ?? "—"
-        guard keyTitle != "—" else { return .empty }
-        var combo = KeyCombo(key: keyTitle)
+        var combo = KeyCombo(key: keyTitle == "—" ? "" : keyTitle)
         switch modTitle {
         case "⌘ Cmd":   combo.command = true
         case "⌃ Ctrl":  combo.control = true

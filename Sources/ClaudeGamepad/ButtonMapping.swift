@@ -8,7 +8,9 @@ struct KeyCombo: Codable, Equatable {
     var option: Bool = false
     var shift: Bool = false
 
-    var isEmpty: Bool { key.isEmpty }
+    var hasModifier: Bool { command || control || option || shift }
+    var isEmpty: Bool { key.isEmpty && !hasModifier }
+    var isModifierOnly: Bool { key.isEmpty && hasModifier }
 
     var displayString: String {
         guard !isEmpty else { return "Not Set" }
@@ -17,7 +19,7 @@ struct KeyCombo: Codable, Equatable {
         if option  { s += "⌥" }
         if shift   { s += "⇧" }
         if command { s += "⌘" }
-        s += key.uppercased()
+        if !key.isEmpty { s += key.uppercased() }
         return s
     }
 
@@ -67,6 +69,7 @@ enum ButtonAction: String, Codable, CaseIterable {
     case enter = "Enter"
     case ctrlC = "Ctrl+C"
     case accept = "Accept (y+Enter)"
+    case alwaysAllow = "Always Allow (2 + Enter)"
     case reject = "Reject (n+Enter)"
     case tab = "Tab"
     case escape = "Escape"
@@ -109,6 +112,8 @@ struct ControllerLabels {
     var select: String { style == .xbox ? "View" : "Create" }
     var guide: String { style == .xbox ? "Xbox" : "PS" }
     var stickClick: String { style == .xbox ? "L3 / R3" : "L3 / R3" }
+    var leftStick: String { "L3" }
+    var rightStick: String { "R3" }
 
     // Face button colors — Xbox and PS5 use different color schemes
     var colorA: NSColor { style == .xbox ? .systemGreen : NSColor(red: 0.35, green: 0.55, blue: 0.90, alpha: 1) }
@@ -221,7 +226,8 @@ struct ButtonMapping: Codable {
         var rb: ButtonAction
         var start: ButtonAction
         var select: ButtonAction
-        var stickClick: ButtonAction
+        var leftStickClick: ButtonAction
+        var rightStickClick: ButtonAction
         var dpadUp: ButtonAction
         var dpadDown: ButtonAction
         var dpadLeft: ButtonAction
@@ -236,7 +242,8 @@ struct ButtonMapping: Codable {
             rb: .escape,
             start: .guideCombo,
             select: .guideCombo,
-            stickClick: .voiceInput,
+            leftStickClick: .voiceInput,
+            rightStickClick: .voiceInput,
             dpadUp: .arrowUp,
             dpadDown: .arrowDown,
             dpadLeft: .arrowLeft,

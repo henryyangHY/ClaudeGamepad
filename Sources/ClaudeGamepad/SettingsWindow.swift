@@ -1316,7 +1316,8 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             rb: gamepadView.actionForSlot("rb"),
             start: gamepadView.actionForSlot("start"),
             select: gamepadView.actionForSlot("select"),
-            stickClick: gamepadView.actionForSlot("stickL"),
+            leftStickClick: gamepadView.actionForSlot("stickL"),
+            rightStickClick: gamepadView.actionForSlot("stickR"),
             dpadUp: gamepadView.actionForSlot("dpadUp"),
             dpadDown: gamepadView.actionForSlot("dpadDown"),
             dpadLeft: gamepadView.actionForSlot("dpadLeft"),
@@ -1369,7 +1370,8 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
         return [
             actions.a, actions.b, actions.x, actions.y,
             actions.lb, actions.rb, actions.start, actions.select,
-            actions.stickClick, actions.dpadUp, actions.dpadDown,
+            actions.leftStickClick, actions.rightStickClick,
+            actions.dpadUp, actions.dpadDown,
             actions.dpadLeft, actions.dpadRight,
         ].filter { $0 != .none }.count
     }

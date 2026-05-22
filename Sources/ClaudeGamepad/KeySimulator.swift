@@ -30,6 +30,9 @@ final class KeySimulator {
     static let kVK_ANSI_N: CGKeyCode       = 0x2D
     static let kVK_ANSI_Y: CGKeyCode       = 0x10
     static let kVK_ANSI_V: CGKeyCode       = 0x09
+    static let kVK_ANSI_2: CGKeyCode       = 0x13
+    static let kVK_Command: CGKeyCode      = 0x37
+    static let kVK_Option: CGKeyCode       = 0x3A
 
     /// Press and release a single key through the HID event tap.
     func pressKey(_ keyCode: CGKeyCode, flags: CGEventFlags = []) {
@@ -55,6 +58,12 @@ final class KeySimulator {
     /// Press an arbitrary key combo via System Events so it can open overlay windows.
     func pressCombo(_ combo: KeyCombo) {
         guard !combo.isEmpty else { return }
+
+        if combo.isModifierOnly {
+            tapModifiers(command: combo.command, control: combo.control,
+                         option: combo.option, shift: combo.shift)
+            return
+        }
 
         var modifiers: [String] = []
         if combo.command { modifiers.append("command down") }
@@ -162,6 +171,49 @@ final class KeySimulator {
         pressKey(KeySimulator.kVK_ANSI_N)
         usleep(20_000)
         pressEnter()
+    }
+
+    /// Select option 2 ("Yes, and don't ask again") in the Claude Code permission dialog.
+    func typeAlwaysAllow() {
+        pressKey(KeySimulator.kVK_ANSI_2)
+        usleep(20_000)
+        pressEnter()
+    }
+
+    /// Tap modifier keys without any other key. Each modifier is pressed in a
+    /// stable order, held together briefly, then released in reverse order.
+    /// For voice apps (Typeless, etc.) that listen for modifier-only hotkeys.
+    func tapModifiers(command: Bool, control: Bool, option: Bool, shift: Bool,
+                      hold: useconds_t = 120_000) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        // Order: Cmd → Ctrl → Opt → Shift (press), reverse on release
+        let mods: [(keyCode: CGKeyCode, flag: CGEventFlags, on: Bool)] = [
+            (KeySimulator.kVK_Command, .maskCommand,   command),
+            (0x3B,                     .maskControl,   control),     // kVK_Control
+            (KeySimulator.kVK_Option,  .maskAlternate, option),
+            (0x38,                     .maskShift,     shift),       // kVK_Shift
+        ].filter { $0.on }
+
+        guard !mods.isEmpty else { return }
+
+        var accumulated: CGEventFlags = []
+        for m in mods {
+            accumulated.insert(m.flag)
+            if let e = CGEvent(keyboardEventSource: source, virtualKey: m.keyCode, keyDown: true) {
+                e.flags = accumulated
+                e.post(tap: .cghidEventTap)
+            }
+            usleep(15_000)
+        }
+        usleep(hold)
+        for m in mods.reversed() {
+            accumulated.remove(m.flag)
+            if let e = CGEvent(keyboardEventSource: source, virtualKey: m.keyCode, keyDown: false) {
+                e.flags = accumulated
+                e.post(tap: .cghidEventTap)
+            }
+            usleep(15_000)
+        }
     }
 
     private func setDirectionalTarget(pid: pid_t, lifetime: TimeInterval) {

@@ -114,10 +114,10 @@ final class GamepadManager {
 
         // Stick clicks
         gamepad.leftThumbstickButton?.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.onStickClick() }
+            if pressed { self?.onLeftStickClick() }
         }
         gamepad.rightThumbstickButton?.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.onStickClick() }
+            if pressed { self?.onRightStickClick() }
         }
 
         // D-pad. Use per-direction press handlers instead of the aggregate
@@ -157,7 +157,7 @@ final class GamepadManager {
     private var rtHeld = false
 
     private func onTriggerChanged(isLT: Bool, value: Float, pressed: Bool) {
-        let held = value > 0.3
+        let held = value > 0.1
         let wasLT = ltHeld
         let wasRT = rtHeld
         if isLT { ltHeld = held } else { rtHeld = held }
@@ -225,6 +225,9 @@ final class GamepadManager {
         case .accept:
             overlay.showMessage("✅ Accept (y)")
             keys.typeAccept()
+        case .alwaysAllow:
+            overlay.showMessage("🔓 Always Allow")
+            keys.typeAlwaysAllow()
         case .reject:
             overlay.showMessage("❌ Reject (n)")
             keys.typeReject()
@@ -382,8 +385,12 @@ final class GamepadManager {
         }
     }
 
-    private func onStickClick() {
-        executeAction(mapping.buttonActions.stickClick, buttonKey: "stickClick")
+    private func onLeftStickClick() {
+        executeAction(mapping.buttonActions.leftStickClick, buttonKey: "leftStickClick")
+    }
+
+    private func onRightStickClick() {
+        executeAction(mapping.buttonActions.rightStickClick, buttonKey: "rightStickClick")
     }
 
     private func onDpadPress(_ direction: ComboInput) {
