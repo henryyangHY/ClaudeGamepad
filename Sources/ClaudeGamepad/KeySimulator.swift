@@ -353,6 +353,18 @@ final class KeySimulator {
         return nil
     }
 
+    /// Move the mouse cursor by a delta in screen pixels.
+    func moveMouse(dx: CGFloat, dy: CGFloat) {
+        // NSEvent.mouseLocation uses AppKit coords (bottom-left origin, Y up).
+        // CGWarpMouseCursorPosition uses CG coords (top-left origin, Y down).
+        let current = NSEvent.mouseLocation
+        guard let screen = NSScreen.main else { return }
+        let h = screen.frame.height
+        let newX = max(0, min(screen.frame.width - 1, current.x + dx))
+        let newCGY = max(0, min(h - 1, (h - current.y) + dy))
+        CGWarpMouseCursorPosition(CGPoint(x: newX, y: newCGY))
+    }
+
     enum ArrowDirection {
         case up, down, left, right
     }

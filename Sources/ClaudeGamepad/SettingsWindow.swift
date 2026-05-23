@@ -288,6 +288,9 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
 
     private var xboxStyleCard: ControllerStyleCard!
     private var ps5StyleCard: ControllerStyleCard!
+    private var stickModePopup: NSPopUpButton!
+    private var mouseSpeedSlider: NSSlider!
+    private var mouseSpeedValueLabel: NSTextField!
 
     private func buildGeneralTab() -> NSView {
         let page = FlippedView(frame: contentContainer.bounds)
@@ -345,21 +348,54 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
         ps5StyleCard.action = #selector(ps5StyleTapped)
         page.addSubview(ps5StyleCard)
 
+        // Left Stick card
+        let stickCardY = cardsY + cardHeight + pageGap
+        let stickCard = SurfaceCardView(frame: NSRect(x: pageInset, y: stickCardY, width: fullWidth, height: 108))
+        stickCard.autoresizingMask = [.width]
+        page.addSubview(stickCard)
+
+        addCardTitle("Left Stick", to: stickCard)
+
+        let modeLbl = NSTextField(labelWithString: "Mode")
+        modeLbl.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        modeLbl.frame = NSRect(x: cardInset, y: 42, width: 100, height: 18)
+        stickCard.addSubview(modeLbl)
+
+        stickModePopup = NSPopUpButton(frame: NSRect(x: cardInset + 110, y: 39, width: 200, height: 26))
+        for mode in LeftStickMode.allCases {
+            stickModePopup.addItem(withTitle: mode.rawValue)
+        }
+        stickModePopup.selectItem(withTitle: mapping.leftStickMode.rawValue)
+        stickModePopup.target = self
+        stickModePopup.action = #selector(stickModeChanged(_:))
+        stickCard.addSubview(stickModePopup)
+
+        let speedLbl = NSTextField(labelWithString: "Speed")
+        speedLbl.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        speedLbl.frame = NSRect(x: cardInset, y: 74, width: 100, height: 18)
+        stickCard.addSubview(speedLbl)
+
+        mouseSpeedSlider = NSSlider(value: Double(mapping.mouseSpeed), minValue: 200, maxValue: 3000,
+                                    target: self, action: #selector(mouseSpeedChanged(_:)))
+        mouseSpeedSlider.frame = NSRect(x: cardInset + 110, y: 72, width: 200, height: 22)
+        stickCard.addSubview(mouseSpeedSlider)
+
+        mouseSpeedValueLabel = NSTextField(labelWithString: "\(Int(mapping.mouseSpeed)) px/s")
+        mouseSpeedValueLabel.font = NSFont.systemFont(ofSize: 11)
+        mouseSpeedValueLabel.textColor = NSColor.white.withAlphaComponent(0.6)
+        mouseSpeedValueLabel.frame = NSRect(x: cardInset + 320, y: 74, width: 80, height: 18)
+        stickCard.addSubview(mouseSpeedValueLabel)
+
+        updateStickModeUI()
+
         return page
     }
 
     private func loadResourceImage(named name: String) -> NSImage? {
-        // Try with subdirectory first (SPM .copy layout)
-        if let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Resources") {
-            return NSImage(contentsOf: url)
-        }
-        // Fallback: forResource splits name and extension
         let parts = name.split(separator: ".", maxSplits: 1)
-        if parts.count == 2,
-           let url = Bundle.module.url(forResource: String(parts[0]), withExtension: String(parts[1]), subdirectory: "Resources") {
-            return NSImage(contentsOf: url)
-        }
-        return nil
+        let base = String(parts[0])
+        let ext: String? = parts.count == 2 ? String(parts[1]) : nil
+        return AppResources.url(forResource: base, withExtension: ext).flatMap { NSImage(contentsOf: $0) }
     }
 
     @objc private func xboxStyleTapped() {
@@ -379,6 +415,21 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
         sectionViews.removeValue(forKey: .buttons)
         sectionViews.removeValue(forKey: .prompts)
         sectionViews.removeValue(forKey: .combos)
+    }
+
+    @objc private func stickModeChanged(_ sender: NSPopUpButton) {
+        updateStickModeUI()
+    }
+
+    @objc private func mouseSpeedChanged(_ sender: NSSlider) {
+        mouseSpeedValueLabel?.stringValue = "\(Int(sender.doubleValue)) px/s"
+    }
+
+    private func updateStickModeUI() {
+        let isMouse = stickModePopup?.titleOfSelectedItem == LeftStickMode.mouse.rawValue
+        mouseSpeedSlider?.isEnabled = isMouse
+        mouseSpeedSlider?.alphaValue = isMouse ? 1.0 : 0.4
+        mouseSpeedValueLabel?.alphaValue = isMouse ? 1.0 : 0.4
     }
 
     // MARK: - Button Mapping
@@ -1324,6 +1375,13 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             dpadRight: gamepadView.actionForSlot("dpadRight")
         )
         mapping.guideKeyCombosMap = gamepadView.guideKeyCombosMap
+        if let title = stickModePopup?.titleOfSelectedItem,
+           let mode = LeftStickMode.allCases.first(where: { $0.rawValue == title }) {
+            mapping.leftStickMode = mode
+        }
+        if let speed = mouseSpeedSlider?.doubleValue {
+            mapping.mouseSpeed = Float(speed)
+        }
         mapping.presetPrompts = mapping.allPrompts
         mapping.ltPrompts = ButtonMapping.QuickPrompts(
             a: promptValues["lt.a"] ?? mapping.ltPrompts.a,

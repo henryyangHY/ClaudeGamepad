@@ -130,7 +130,24 @@ All mappings are fully customizable in Settings.
 - A game controller (Xbox, PS5 DualSense, or MFi compatible)
 - For Whisper (optional): `brew install whisper-cpp`
 
-### Build from Source
+### Option A: .app Bundle (Recommended)
+
+Build a proper macOS app bundle that lives in `/Applications/` and can auto-launch on login — no terminal required after the first build.
+
+```bash
+git clone https://github.com/xargin/ClaudeGamepad.git
+cd ClaudeGamepad
+./build-app.sh
+cp -R ClaudeGamepad.app /Applications/
+```
+
+Then open the app once and grant **Accessibility** when prompted.
+
+**Auto-launch on login:** System Settings → General → Login Items → add ClaudeGamepad.
+
+> **Note:** Every time you rebuild and copy a new binary to `/Applications/`, macOS will revoke the existing Accessibility grant. Go to System Settings → Privacy & Security → Accessibility, toggle ClaudeGamepad off and back on after each update.
+
+### Option B: Build from Source (CLI)
 
 ```bash
 git clone https://github.com/xargin/ClaudeGamepad.git
@@ -139,7 +156,7 @@ swift build -c release
 # Binary at .build/release/ClaudeGamepad
 ```
 
-### Run
+### Run (CLI)
 
 ```bash
 swift run
@@ -154,12 +171,13 @@ cp .build/release/ClaudeGamepad /usr/local/bin/
 
 ## First Launch
 
-1. Run `swift run` or the built binary
-2. Grant **Accessibility** permission when prompted (System Settings > Privacy & Security > Accessibility) — needed for keyboard simulation
-3. Grant **Speech Recognition** permission if using voice input
-4. Connect your controller — the menu bar icon turns active
-5. Focus your terminal running Claude Code
-6. Start pressing buttons!
+1. Open `ClaudeGamepad.app` (or run `swift run` for CLI mode)
+2. If Accessibility is not granted, the menu bar icon shows **「⚠️ Grant Accessibility to enable buttons」** — click it to jump directly to System Settings
+3. Grant **Accessibility** permission (needed for keyboard simulation)
+4. Grant **Speech Recognition** permission if using voice input
+5. Connect your controller — the menu bar icon turns active
+6. Focus your terminal running Claude Code
+7. Start pressing buttons!
 
 ## Usage
 
@@ -286,6 +304,12 @@ Use this when you want a controller button to open a keyboard-driven overlay suc
 
 **Q: Controller not detected**
 > Make sure your controller is Mac-compatible. Xbox and PS5 controllers work best. MFi controllers should work but may have limited button support.
+
+**Q: Buttons stop working after I update the app**
+> macOS invalidates the Accessibility grant whenever the app binary is replaced. Go to System Settings → Privacy & Security → Accessibility, toggle ClaudeGamepad off and back on.
+
+**Q: The menu bar shows ⚠️ Grant Accessibility to enable buttons**
+> Click that menu item to jump directly to the Accessibility settings page, then add or re-enable ClaudeGamepad.
 
 ## Contributing
 
