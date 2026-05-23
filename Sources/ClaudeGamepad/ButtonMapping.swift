@@ -8,7 +8,9 @@ struct KeyCombo: Codable, Equatable {
     var option: Bool = false
     var shift: Bool = false
 
-    var isEmpty: Bool { key.isEmpty }
+    var hasModifier: Bool { command || control || option || shift }
+    var isEmpty: Bool { key.isEmpty && !hasModifier }
+    var isModifierOnly: Bool { key.isEmpty && hasModifier }
 
     var displayString: String {
         guard !isEmpty else { return "Not Set" }
@@ -17,7 +19,7 @@ struct KeyCombo: Codable, Equatable {
         if option  { s += "⌥" }
         if shift   { s += "⇧" }
         if command { s += "⌘" }
-        s += key.uppercased()
+        if !key.isEmpty { s += key.uppercased() }
         return s
     }
 
@@ -67,6 +69,7 @@ enum ButtonAction: String, Codable, CaseIterable {
     case enter = "Enter"
     case ctrlC = "Ctrl+C"
     case accept = "Accept (y+Enter)"
+    case alwaysAllow = "Always Allow (2 + Enter)"
     case reject = "Reject (n+Enter)"
     case tab = "Tab"
     case escape = "Escape"
@@ -86,6 +89,12 @@ enum ButtonAction: String, Codable, CaseIterable {
 enum ControllerStyle: String, Codable, CaseIterable {
     case xbox = "Xbox"
     case ps5 = "PS5"
+}
+
+/// Left analog stick behavior.
+enum LeftStickMode: String, Codable, CaseIterable {
+    case scroll = "Scroll"
+    case mouse = "Mouse Cursor"
 }
 
 /// Centralized controller button labels and colors based on style preference.
@@ -109,6 +118,8 @@ struct ControllerLabels {
     var select: String { style == .xbox ? "View" : "Create" }
     var guide: String { style == .xbox ? "Xbox" : "PS" }
     var stickClick: String { style == .xbox ? "L3 / R3" : "L3 / R3" }
+    var leftStick: String { "L3" }
+    var rightStick: String { "R3" }
 
     // Face button colors — Xbox and PS5 use different color schemes
     var colorA: NSColor { style == .xbox ? .systemGreen : NSColor(red: 0.35, green: 0.55, blue: 0.90, alpha: 1) }
@@ -221,7 +232,8 @@ struct ButtonMapping: Codable {
         var rb: ButtonAction
         var start: ButtonAction
         var select: ButtonAction
-        var stickClick: ButtonAction
+        var leftStickClick: ButtonAction
+        var rightStickClick: ButtonAction
         var dpadUp: ButtonAction
         var dpadDown: ButtonAction
         var dpadLeft: ButtonAction
@@ -236,7 +248,8 @@ struct ButtonMapping: Codable {
             rb: .escape,
             start: .guideCombo,
             select: .guideCombo,
-            stickClick: .voiceInput,
+            leftStickClick: .voiceInput,
+            rightStickClick: .voiceInput,
             dpadUp: .arrowUp,
             dpadDown: .arrowDown,
             dpadLeft: .arrowLeft,
@@ -285,7 +298,7 @@ struct ButtonMapping: Codable {
     ]
 
     static let `default`: ButtonMapping = {
-        if let url = Bundle.module.url(forResource: "default_config", withExtension: "json"),
+        if let url = AppResources.url(forResource: "default_config", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let mapping = try? JSONDecoder().decode(ButtonMapping.self, from: data) {
             return mapping
@@ -335,6 +348,11 @@ struct ButtonMapping: Codable {
     var comboStyle: ComboStyle
     var combos: [ComboEntry]
 
+    // MARK: - Left Stick
+
+    var leftStickMode: LeftStickMode
+    var mouseSpeed: Float  // pixels per second at full deflection
+
     // MARK: - Persistence
 
     private static var configURL: URL {
@@ -348,7 +366,8 @@ struct ButtonMapping: Codable {
          ltPrompts: QuickPrompts, rtPrompts: QuickPrompts,
          buttonActions: ButtonActions, guideKeyCombosMap: [String: [KeyCombo]],
          controllerStyle: ControllerStyle,
-         comboStyle: ComboStyle, combos: [ComboEntry]) {
+         comboStyle: ComboStyle, combos: [ComboEntry],
+         leftStickMode: LeftStickMode = .scroll, mouseSpeed: Float = 1200) {
         self.categories = categories
         self.presetPrompts = presetPrompts
         self.ltPrompts = ltPrompts
@@ -358,6 +377,8 @@ struct ButtonMapping: Codable {
         self.controllerStyle = controllerStyle
         self.comboStyle = comboStyle
         self.combos = combos
+        self.leftStickMode = leftStickMode
+        self.mouseSpeed = mouseSpeed
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -366,6 +387,7 @@ struct ButtonMapping: Codable {
         case guideKeyCombos          // legacy array key
         case guideKeyCombo           // legacy single-value key
         case controllerStyle, comboStyle, combos
+        case leftStickMode, mouseSpeed
     }
 
     func encode(to encoder: Encoder) throws {
@@ -379,6 +401,8 @@ struct ButtonMapping: Codable {
         try container.encode(controllerStyle, forKey: .controllerStyle)
         try container.encode(comboStyle, forKey: .comboStyle)
         try container.encode(combos, forKey: .combos)
+        try container.encode(leftStickMode, forKey: .leftStickMode)
+        try container.encode(mouseSpeed, forKey: .mouseSpeed)
     }
 
     /// Custom decoder to handle backward compatibility when new fields are added.
@@ -402,6 +426,8 @@ struct ButtonMapping: Codable {
         controllerStyle = try container.decodeIfPresent(ControllerStyle.self, forKey: .controllerStyle) ?? .xbox
         comboStyle = try container.decode(ComboStyle.self, forKey: .comboStyle)
         combos = try container.decode([ComboEntry].self, forKey: .combos)
+        leftStickMode = try container.decodeIfPresent(LeftStickMode.self, forKey: .leftStickMode) ?? .scroll
+        mouseSpeed = try container.decodeIfPresent(Float.self, forKey: .mouseSpeed) ?? 1200
     }
 
     static func load() -> ButtonMapping {

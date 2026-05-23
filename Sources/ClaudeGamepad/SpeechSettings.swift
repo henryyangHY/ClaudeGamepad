@@ -16,7 +16,7 @@ struct SpeechSettings: Codable {
     var llmModel: String = "qwen2.5:7b"
 
     static let `default`: SpeechSettings = {
-        if let url = Bundle.module.url(forResource: "default_speech_settings", withExtension: "json"),
+        if let url = AppResources.url(forResource: "default_speech_settings", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let settings = try? JSONDecoder().decode(SpeechSettings.self, from: data) {
             return settings

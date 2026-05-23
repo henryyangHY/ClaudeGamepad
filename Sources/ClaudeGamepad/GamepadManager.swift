@@ -114,10 +114,10 @@ final class GamepadManager {
 
         // Stick clicks
         gamepad.leftThumbstickButton?.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.onStickClick() }
+            if pressed { self?.onLeftStickClick() }
         }
         gamepad.rightThumbstickButton?.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.onStickClick() }
+            if pressed { self?.onRightStickClick() }
         }
 
         // D-pad. Use per-direction press handlers instead of the aggregate
@@ -157,7 +157,7 @@ final class GamepadManager {
     private var rtHeld = false
 
     private func onTriggerChanged(isLT: Bool, value: Float, pressed: Bool) {
-        let held = value > 0.3
+        let held = value > 0.1
         let wasLT = ltHeld
         let wasRT = rtHeld
         if isLT { ltHeld = held } else { rtHeld = held }
@@ -225,6 +225,9 @@ final class GamepadManager {
         case .accept:
             overlay.showMessage("✅ Accept (y)")
             keys.typeAccept()
+        case .alwaysAllow:
+            overlay.showMessage("🔓 Always Allow")
+            keys.typeAlwaysAllow()
         case .reject:
             overlay.showMessage("❌ Reject (n)")
             keys.typeReject()
@@ -382,8 +385,12 @@ final class GamepadManager {
         }
     }
 
-    private func onStickClick() {
-        executeAction(mapping.buttonActions.stickClick, buttonKey: "stickClick")
+    private func onLeftStickClick() {
+        executeAction(mapping.buttonActions.leftStickClick, buttonKey: "leftStickClick")
+    }
+
+    private func onRightStickClick() {
+        executeAction(mapping.buttonActions.rightStickClick, buttonKey: "rightStickClick")
     }
 
     private func onDpadPress(_ direction: ComboInput) {
@@ -421,19 +428,56 @@ final class GamepadManager {
     }
 
     private var lastScrollTime: TimeInterval = 0
+    private var leftStickX: Float = 0
+    private var leftStickY: Float = 0
+    private var mouseTimer: Timer?
+    private let mouseDead: Float = 0.12
 
     private func onLeftStick(x: Float, y: Float) {
         guard !isInPresetMenu else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastScrollTime > 0.12 else { return }
 
-        if y > 0.4 {
-            keys.pressArrow(.up)
-            lastScrollTime = now
-        } else if y < -0.4 {
-            keys.pressArrow(.down)
-            lastScrollTime = now
+        if mapping.leftStickMode == .mouse {
+            leftStickX = x
+            leftStickY = y
+            updateMouseTimer()
+        } else {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - lastScrollTime > 0.12 else { return }
+            if y > 0.4 {
+                keys.pressArrow(.up)
+                lastScrollTime = now
+            } else if y < -0.4 {
+                keys.pressArrow(.down)
+                lastScrollTime = now
+            }
         }
+    }
+
+    private func updateMouseTimer() {
+        let active = abs(leftStickX) > mouseDead || abs(leftStickY) > mouseDead
+        if active && mouseTimer == nil {
+            mouseTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] _ in
+                self?.tickMouse()
+            }
+        } else if !active {
+            mouseTimer?.invalidate()
+            mouseTimer = nil
+        }
+    }
+
+    private func tickMouse() {
+        let ax = abs(leftStickX) > mouseDead ? leftStickX : 0
+        let ay = abs(leftStickY) > mouseDead ? leftStickY : 0
+        guard ax != 0 || ay != 0 else {
+            mouseTimer?.invalidate()
+            mouseTimer = nil
+            return
+        }
+        let speed = CGFloat(mapping.mouseSpeed)
+        let dt: CGFloat = 1.0/60.0
+        // Stick up (positive Y) → cursor moves up → CG Y decreases → negative dy
+        keys.moveMouse(dx: CGFloat(ax) * speed * dt,
+                       dy: CGFloat(-ay) * speed * dt)
     }
 
     // MARK: - Command Mode
@@ -592,6 +636,10 @@ final class GamepadManager {
     /// Reload settings from disk.
     func reloadMapping() {
         mapping = ButtonMapping.load()
+        if mapping.leftStickMode != .mouse {
+            mouseTimer?.invalidate()
+            mouseTimer = nil
+        }
     }
 
     func reloadSpeechSettings() {

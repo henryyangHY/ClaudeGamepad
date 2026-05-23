@@ -34,13 +34,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenuItem.tag = 100
         menu.addItem(statusMenuItem)
 
+        // Accessibility warning — tag 101, hidden when AX is granted
+        let axItem = NSMenuItem(title: "⚠️ Grant Accessibility to enable buttons", action: #selector(openAccessibilitySettings), keyEquivalent: "")
+        axItem.tag = 101
+        axItem.isHidden = AXIsProcessTrusted()
+        menu.addItem(axItem)
+
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
 
-        // Set targets
         for item in menu.items {
             if item.action != nil {
                 item.target = self
@@ -81,31 +86,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Permissions
 
     private func requestPermissions() {
-        // All TCC permission requests (Speech, Accessibility) are deferred to
-        // actual use to avoid __TCC_CRASHING_DUE_TO_PRIVACY_VIOLATION__ in
-        // non-bundled executables on macOS 26+.
-        // OverlayPanel (floating NSPanel) is also deferred — creating it at
-        // launch can trigger a screen-overlay TCC check on macOS 26.
+        // Gamepad detection (GCController) does not require Accessibility —
+        // start it immediately so a connected controller is recognised at launch.
+        setupGamepad()
 
-        if AXIsProcessTrusted() {
-            setupGamepad()
-        } else {
-            print("[ClaudeGamepad] Accessibility not granted.")
-            print("[ClaudeGamepad] Add this terminal app in System Settings → Privacy & Security → Accessibility.")
-            print("[ClaudeGamepad] Waiting for permission...")
-            // Poll until the user grants permission — no UI at this stage
+        // Accessibility is only needed for key simulation. If not yet granted,
+        // prompt macOS to show the permission dialog and poll until AX is trusted.
+        if !AXIsProcessTrusted() {
+            AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary)
             accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
                 if AXIsProcessTrusted() {
                     timer.invalidate()
                     self?.accessibilityTimer = nil
-                    print("[ClaudeGamepad] Accessibility granted!")
-                    self?.setupGamepad()
+                    DispatchQueue.main.async { self?.updateAccessibilityMenuItem() }
                 }
             }
         }
     }
 
+    private func updateAccessibilityMenuItem() {
+        guard let menu = statusItem.menu,
+              let item = menu.item(withTag: 101) else { return }
+        item.isHidden = AXIsProcessTrusted()
+    }
+
     // MARK: - Menu Actions
+
+    @objc private func openAccessibilitySettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    }
 
     @objc private func openSettings() {
         if settingsWindow == nil {
@@ -115,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-@objc private func quit() {
+    @objc private func quit() {
         NSApplication.shared.terminate(nil)
     }
 }
