@@ -12,6 +12,12 @@ DerivedData/
 # macOS
 .DS_Store
 
+# Build artifacts
+ClaudeGamepad.app/
+
+# Claude Code internal files
+.superpowers/
+
 # Python (legacy)
 __pycache__/
 *.pyc
