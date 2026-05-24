@@ -81,6 +81,7 @@ enum ButtonAction: String, Codable, CaseIterable {
     case arrowLeft = "Arrow Left (←)"
     case arrowRight = "Arrow Right (→)"
     case guideCombo = "Combo"
+    case leftClick = "Left Click"
     case quit = "Quit"
     case none = "None"
 }

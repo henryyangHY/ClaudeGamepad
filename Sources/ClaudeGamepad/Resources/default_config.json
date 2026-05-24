@@ -17,7 +17,7 @@
     "rb": "Escape",
     "start": "Combo",
     "select": "Combo",
-    "leftStickClick": "Voice Input",
+    "leftStickClick": "Left Click",
     "rightStickClick": "Voice Input",
     "dpadUp": "Arrow Up (↑)",
     "dpadDown": "Arrow Down (↓)",

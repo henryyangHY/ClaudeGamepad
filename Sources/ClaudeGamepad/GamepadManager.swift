@@ -258,6 +258,9 @@ final class GamepadManager {
         case .arrowRight: keys.pressArrow(.right)
         case .guideCombo:
             onGuide(buttonKey: buttonKey)
+        case .leftClick:
+            overlay.showMessage("🖱️ Left Click", duration: 0.6)
+            keys.mouseClick()
         case .quit:
             overlay.showMessage("👋 Bye!")
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
