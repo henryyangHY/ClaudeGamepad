@@ -155,6 +155,8 @@ final class GamepadManager {
 
     private var ltHeld = false
     private var rtHeld = false
+    private var commandModeEnteredAt: TimeInterval = 0
+    private let mouseTapThreshold: TimeInterval = 0.30
 
     private func onTriggerChanged(isLT: Bool, value: Float, pressed: Bool) {
         let held = value > 0.1
@@ -173,7 +175,14 @@ final class GamepadManager {
 
         // Leaving command mode: one trigger released
         if !bothNow && bothBefore && isInCommandMode {
+            // A quick LT+RT tap with no combo input → toggle mouse mode.
+            let heldDuration = ProcessInfo.processInfo.systemUptime - commandModeEnteredAt
+            let wasTap = comboBuffer.isEmpty && heldDuration < mouseTapThreshold
             exitCommandMode()
+            if wasTap {
+                toggleMouseMode()
+                return
+            }
             // If the other trigger is still held, show its cheat sheet
             if ltHeld || rtHeld {
                 let useLeft = ltHeld
@@ -497,6 +506,7 @@ final class GamepadManager {
     }
 
     private func enterCommandMode() {
+        commandModeEnteredAt = ProcessInfo.processInfo.systemUptime
         isInCommandMode = true
         comboBuffer = []
         comboTimer?.invalidate()
@@ -509,6 +519,18 @@ final class GamepadManager {
         comboTimer?.invalidate()
         comboTimer = nil
         overlay.fadeOut()
+    }
+
+    /// Toggle the left stick between scroll and mouse-cursor mode, persisting the choice.
+    private func toggleMouseMode() {
+        let newMode: LeftStickMode = mapping.leftStickMode == .mouse ? .scroll : .mouse
+        mapping.leftStickMode = newMode
+        mapping.save()
+        if newMode != .mouse {
+            mouseTimer?.invalidate()
+            mouseTimer = nil
+        }
+        overlay.showMessage(newMode == .mouse ? "🖱️ Mouse mode ON" : "🖱️ Mouse mode OFF")
     }
 
     private func comboAppend(_ input: ComboInput) {
