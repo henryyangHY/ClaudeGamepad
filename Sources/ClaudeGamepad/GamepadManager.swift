@@ -353,6 +353,13 @@ final class GamepadManager {
     }
 
     private func onLB() {
+        // LT + LB → ⌘⌥ (Typeless modifier-only voice trigger).
+        // Only when LT is held alone (not in LT+RT command mode).
+        if ltHeld && !isInCommandMode {
+            overlay.showMessage("⚡ ⌘⌥ Typeless")
+            keys.tapModifiers(command: true, control: false, option: true, shift: false)
+            return
+        }
         executeAction(mapping.buttonActions.lb, buttonKey: "lb")
     }
 
