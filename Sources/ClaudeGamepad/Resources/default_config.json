@@ -18,7 +18,7 @@
     "start": "Combo",
     "select": "Combo",
     "leftStickClick": "Left Click",
-    "rightStickClick": "Voice Input",
+    "rightStickClick": "Combo",
     "dpadUp": "Arrow Up (↑)",
     "dpadDown": "Arrow Down (↓)",
     "dpadLeft": "Arrow Left (←)",
@@ -27,7 +27,8 @@
   "guideKeyCombosMap": {
     "start":  [{ "key": "]", "command": true, "control": false, "option": false, "shift": true }],
     "select": [{ "key": "T", "command": true, "control": false, "option": false, "shift": false }],
-    "lb":     [{ "key": "W", "command": true, "control": false, "option": false, "shift": false }]
+    "lb":     [{ "key": "W", "command": true, "control": false, "option": false, "shift": false }],
+    "rightStickClick": [{ "key": "W", "command": true, "control": false, "option": false, "shift": false }]
   },
   "controllerStyle": "PS5",
   "comboStyle": "Helldivers 2",
