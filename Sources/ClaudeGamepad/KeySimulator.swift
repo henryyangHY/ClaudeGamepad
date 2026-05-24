@@ -365,18 +365,16 @@ final class KeySimulator {
         CGWarpMouseCursorPosition(CGPoint(x: newX, y: newCGY))
     }
 
-    /// Simulate a left mouse click at the current cursor position.
-    /// Requires Accessibility permission (synthetic CGEvent posting).
+    /// Simulate a left mouse click at the current cursor position via System Events.
     func mouseClick() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        let pos = CGEvent(source: nil)?.location ?? .zero
-        guard let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
-                                 mouseCursorPosition: pos, mouseButton: .left),
-              let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
-                               mouseCursorPosition: pos, mouseButton: .left) else { return }
-        down.post(tap: .cghidEventTap)
-        usleep(12_000)
-        up.post(tap: .cghidEventTap)
+        let script = "tell application \"System Events\" to click"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
     }
 
     enum ArrowDirection {
