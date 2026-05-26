@@ -13,7 +13,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
         case general
         case buttons
         case prompts
-        case combos
         case speech
 
         var title: String {
@@ -21,7 +20,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             case .general: return "General"
             case .buttons: return "Button Mapping"
             case .prompts: return "Preset Prompts"
-            case .combos: return "Command Combos"
             case .speech: return "Speech Recognition"
             }
         }
@@ -34,8 +32,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
                 return "Review the controller layout and keep high-frequency actions easy to scan."
             case .prompts:
                 return "Edit trigger combos from one focused workspace instead of juggling dropdowns."
-            case .combos:
-                return "Configure command mode: combo style and input sequences."
             case .speech:
                 return "See the whole voice pipeline at a glance: engine, model, install state, and LLM cleanup."
             }
@@ -46,7 +42,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             case .general: return "gearshape"
             case .buttons: return "gamecontroller"
             case .prompts: return "text.bubble"
-            case .combos: return "bolt.circle"
             case .speech: return "waveform.and.mic"
             }
         }
@@ -262,8 +257,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             return "\(gamepadActionCount()) mapped actions"
         case .prompts:
             return "\(promptSlots.count) quick prompts"
-        case .combos:
-            return "\(mapping.combos.count) combos · \(mapping.comboStyle == .helldivers ? "Helldivers" : "Fighting")"
         case .speech:
             return selectedEngineType == .system ? "System speech" : "Whisper local"
         }
@@ -277,8 +270,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             return buildButtonMappingTab()
         case .prompts:
             return buildPromptsTab()
-        case .combos:
-            return buildCombosTab()
         case .speech:
             return buildSpeechTab()
         }
@@ -414,7 +405,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
         // Clear cached section views so they rebuild with new labels
         sectionViews.removeValue(forKey: .buttons)
         sectionViews.removeValue(forKey: .prompts)
-        sectionViews.removeValue(forKey: .combos)
     }
 
     @objc private func stickModeChanged(_ sender: NSPopUpButton) {
@@ -739,242 +729,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return flattened.isEmpty ? "No prompt assigned" : flattened
-    }
-
-    // MARK: - Command Combos
-
-    private var comboStylePopup: NSPopUpButton!
-    private var comboTableContainer: FlippedView!
-
-    private func buildCombosTab() -> NSView {
-        let page = FlippedView(frame: contentContainer.bounds)
-        page.autoresizingMask = [.width, .height]
-
-        var y: CGFloat = pageInset
-
-        // Header
-        let header = NSTextField(labelWithString: "Command Combos")
-        header.font = NSFont.systemFont(ofSize: 20, weight: .bold)
-        header.textColor = .white
-        header.frame = NSRect(x: pageInset, y: y, width: 400, height: 28)
-        page.addSubview(header)
-        y += 28
-
-        let cl = mapping.labels
-        let subtitle = NSTextField(labelWithString: "Hold \(cl.lt)+\(cl.rt) to activate Command Mode. Input combos with D-pad (+ face buttons for Fighting style).")
-        subtitle.font = NSFont.systemFont(ofSize: 12)
-        subtitle.textColor = NSColor.white.withAlphaComponent(0.5)
-        subtitle.frame = NSRect(x: pageInset, y: y, width: 600, height: 18)
-        page.addSubview(subtitle)
-        y += 30
-
-        // Style selector card
-        let styleCard = SurfaceCardView(frame: NSRect(x: pageInset, y: y, width: page.bounds.width - pageInset * 2, height: 60))
-        styleCard.autoresizingMask = [.width]
-        page.addSubview(styleCard)
-
-        let styleLabel = NSTextField(labelWithString: "Combo Style")
-        styleLabel.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        styleLabel.textColor = .white
-        styleLabel.frame = NSRect(x: cardInset, y: 18, width: 120, height: 20)
-        styleCard.addSubview(styleLabel)
-
-        comboStylePopup = NSPopUpButton(frame: NSRect(x: cardInset + 130, y: 15, width: 260, height: 28))
-        for style in ComboStyle.allCases {
-            comboStylePopup.addItem(withTitle: style.rawValue)
-        }
-        comboStylePopup.selectItem(withTitle: mapping.comboStyle.rawValue)
-        comboStylePopup.target = self
-        comboStylePopup.action = #selector(comboStyleChanged(_:))
-        styleCard.addSubview(comboStylePopup)
-        y += 60 + pageGap
-
-        // Combo list card
-        let listCard = SurfaceCardView(frame: NSRect(x: pageInset, y: y, width: page.bounds.width - pageInset * 2, height: page.bounds.height - y - pageGap - 40))
-        listCard.autoresizingMask = [.width, .height]
-        page.addSubview(listCard)
-
-        // Table header
-        let headers = [("Name", cardInset, 100), ("Inputs", cardInset + 110, 160), ("Prompt", cardInset + 280, 300)]
-        for (text, hx, hw) in headers {
-            let h = NSTextField(labelWithString: text)
-            h.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-            h.textColor = NSColor.white.withAlphaComponent(0.35)
-            h.frame = NSRect(x: CGFloat(hx), y: CGFloat(cardInset), width: CGFloat(hw), height: 16)
-            listCard.addSubview(h)
-        }
-
-        let addButton = NSButton(title: "+ Add Combo", target: self, action: #selector(addCombo))
-        addButton.bezelStyle = .recessed
-        addButton.frame = NSRect(x: listCard.bounds.width - 130, y: CGFloat(cardInset) - 4, width: 110, height: 24)
-        addButton.autoresizingMask = [.minXMargin]
-        listCard.addSubview(addButton)
-
-        comboTableContainer = FlippedView(frame: NSRect(x: 0, y: CGFloat(cardInset) + 20, width: listCard.bounds.width, height: listCard.bounds.height - CGFloat(cardInset) - 20))
-        comboTableContainer.autoresizingMask = [.width, .height]
-        listCard.addSubview(comboTableContainer)
-
-        rebuildComboRows()
-
-        return page
-    }
-
-    /// Indices into `mapping.combos` for the currently selected style.
-    private func filteredComboIndices() -> [Int] {
-        mapping.combos.enumerated().compactMap { $0.element.style == mapping.comboStyle ? $0.offset : nil }
-    }
-
-    /// Find combos whose inputs are a prefix of, or prefixed by, the combo at the given index.
-    /// Returns the names of conflicting combos (within the same style).
-    private func comboPrefixConflicts(for index: Int) -> [String] {
-        let combo = mapping.combos[index]
-        let sameStyle = mapping.combos.enumerated().filter { $0.offset != index && $0.element.style == combo.style }
-        var conflicts: [String] = []
-        for (_, other) in sameStyle {
-            let shorter = min(combo.inputs.count, other.inputs.count)
-            if shorter > 0 &&
-               Array(combo.inputs.prefix(shorter)) == Array(other.inputs.prefix(shorter)) {
-                conflicts.append(other.name)
-            }
-        }
-        return conflicts
-    }
-
-    private func rebuildComboRows() {
-        comboTableContainer.subviews.forEach { $0.removeFromSuperview() }
-        let rh: CGFloat = 38
-        let indices = filteredComboIndices()
-
-        for (row, comboIndex) in indices.enumerated() {
-            let combo = mapping.combos[comboIndex]
-            let rowY = CGFloat(row) * rh
-
-            // Stripe
-            if row % 2 == 0 {
-                let bg = NSView(frame: NSRect(x: 0, y: rowY, width: comboTableContainer.bounds.width, height: rh))
-                bg.wantsLayer = true
-                bg.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.03).cgColor
-                bg.autoresizingMask = [.width]
-                comboTableContainer.addSubview(bg)
-            }
-
-            // Check prefix conflicts
-            let conflicts = comboPrefixConflicts(for: comboIndex)
-            let hasConflict = !conflicts.isEmpty
-
-            // Name (editable)
-            let nameField = NSTextField(string: combo.name)
-            nameField.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-            nameField.textColor = hasConflict ? NSColor.systemYellow : NSColor.systemOrange
-            nameField.isBordered = false
-            nameField.drawsBackground = false
-            nameField.isEditable = true
-            nameField.frame = NSRect(x: cardInset, y: rowY + 6, width: 100, height: 24)
-            nameField.tag = comboIndex
-            nameField.target = self
-            nameField.action = #selector(comboNameEdited(_:))
-            comboTableContainer.addSubview(nameField)
-
-            // Conflict warning icon
-            if hasConflict {
-                let warnLabel = NSTextField(labelWithString: "⚠️")
-                warnLabel.font = NSFont.systemFont(ofSize: 11)
-                warnLabel.frame = NSRect(x: cardInset + 94, y: rowY + 6, width: 20, height: 24)
-                warnLabel.toolTip = "Prefix conflict: \(conflicts.joined(separator: ", "))\nShorter combo fires first, longer combo can never be reached"
-                comboTableContainer.addSubview(warnLabel)
-            }
-
-            // Input sequence display
-            let seqDisplay = combo.inputs.map { $0.displayLabel(mapping.labels) }.joined(separator: " ")
-            let seqField = NSTextField(labelWithString: seqDisplay)
-            seqField.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
-            seqField.textColor = hasConflict ? NSColor.systemYellow.withAlphaComponent(0.7) : NSColor.white.withAlphaComponent(0.7)
-            seqField.frame = NSRect(x: cardInset + 110, y: rowY + 6, width: 160, height: 24)
-            comboTableContainer.addSubview(seqField)
-
-            // Edit inputs button
-            let editBtn = NSButton(title: "Edit", target: self, action: #selector(editComboInputs(_:)))
-            editBtn.bezelStyle = .recessed
-            editBtn.tag = comboIndex
-            editBtn.frame = NSRect(x: cardInset + 240, y: rowY + 7, width: 36, height: 22)
-            editBtn.font = NSFont.systemFont(ofSize: 10)
-            comboTableContainer.addSubview(editBtn)
-
-            // Prompt (editable)
-            let promptField = NSTextField(string: combo.prompt)
-            promptField.font = NSFont.systemFont(ofSize: 12)
-            promptField.textColor = .white
-            promptField.isBordered = false
-            promptField.drawsBackground = false
-            promptField.isEditable = true
-            promptField.lineBreakMode = .byTruncatingTail
-            promptField.frame = NSRect(x: cardInset + 290, y: rowY + 6, width: comboTableContainer.bounds.width - cardInset - 290 - 50, height: 24)
-            promptField.tag = comboIndex
-            promptField.target = self
-            promptField.action = #selector(comboPromptEdited(_:))
-            comboTableContainer.addSubview(promptField)
-
-            // Delete button
-            let delBtn = NSButton(title: "✕", target: self, action: #selector(deleteCombo(_:)))
-            delBtn.bezelStyle = .recessed
-            delBtn.tag = comboIndex
-            delBtn.frame = NSRect(x: comboTableContainer.bounds.width - 40, y: rowY + 7, width: 24, height: 22)
-            delBtn.font = NSFont.systemFont(ofSize: 11)
-            comboTableContainer.addSubview(delBtn)
-        }
-    }
-
-    @objc private func comboStyleChanged(_ sender: NSPopUpButton) {
-        if let title = sender.selectedItem?.title,
-           let style = ComboStyle.allCases.first(where: { $0.rawValue == title }) {
-            mapping.comboStyle = style
-            rebuildComboRows()
-        }
-    }
-
-    @objc private func comboNameEdited(_ sender: NSTextField) {
-        let i = sender.tag
-        guard i >= 0, i < mapping.combos.count else { return }
-        mapping.combos[i].name = sender.stringValue
-    }
-
-    @objc private func comboPromptEdited(_ sender: NSTextField) {
-        let i = sender.tag
-        guard i >= 0, i < mapping.combos.count else { return }
-        mapping.combos[i].prompt = sender.stringValue
-    }
-
-    @objc private func addCombo() {
-        let style = mapping.comboStyle
-        let defaultInputs: [ComboInput] = style == .helldivers ? [.up, .down, .up] : [.down, .right, .a]
-        mapping.combos.append(ComboEntry(name: "New Combo", inputs: defaultInputs, prompt: "your prompt here", style: style))
-        rebuildComboRows()
-    }
-
-    @objc private func deleteCombo(_ sender: NSButton) {
-        let i = sender.tag
-        guard i >= 0, i < mapping.combos.count else { return }
-        mapping.combos.remove(at: i)
-        rebuildComboRows()
-    }
-
-    @objc private func editComboInputs(_ sender: NSButton) {
-        let i = sender.tag
-        guard i >= 0, i < mapping.combos.count else { return }
-
-        let editor = ComboInputEditor(
-            inputs: mapping.combos[i].inputs,
-            name: mapping.combos[i].name,
-            isFighting: mapping.comboStyle == .fighting,
-            labels: mapping.labels
-        )
-        guard let window = sender.window else { return }
-        window.beginSheet(editor.window!) { response in
-            if response == .OK, !editor.inputs.isEmpty {
-                self.mapping.combos[i].inputs = editor.inputs
-                self.rebuildComboRows()
-            }
-        }
     }
 
     // MARK: - Speech
@@ -1468,202 +1222,6 @@ final class SettingsWindow: NSWindowController, NSTextViewDelegate {
 
 class FlippedView: NSView {
     override var isFlipped: Bool { true }
-}
-
-// MARK: - Combo Input Editor (button-based)
-
-private final class ComboInputEditor: NSObject {
-    private(set) var inputs: [ComboInput]
-    private let sheetWindow: NSWindow
-    private let sequenceLabel: NSTextField
-    private let isFighting: Bool
-    private let labels: ControllerLabels
-
-    var window: NSWindow? { sheetWindow }
-
-    init(inputs: [ComboInput], name: String, isFighting: Bool, labels: ControllerLabels) {
-        self.inputs = inputs
-        self.isFighting = isFighting
-        self.labels = labels
-
-        // Layout constants
-        let bs: CGFloat = 50       // button size
-        let gap: CGFloat = 6       // gap between buttons
-        let pad: CGFloat = 20      // outer padding
-        let seqH: CGFloat = 40     // sequence display height
-        let barH: CGFloat = 32     // bottom bar height
-        let secGap: CGFloat = 14   // gap between sections
-
-        // D-pad cross: 3 wide × 2 tall
-        let dpadW = bs * 3 + gap * 2  // 162
-
-        // Face buttons Xbox diamond: 3 tall × 3 wide (fighting only)
-        // faceW = 3*bs + 2*gap = 162, faceH = 3*bs + 2*gap = 162
-        let btnAreaH: CGFloat = isFighting
-            ? bs * 3 + gap * 2   // 162 — diamond needs 3 rows
-            : bs * 2 + gap       // 106 — D-pad only needs 2 rows
-
-        // Window size — minimum width must fit the bottom bar (⌫ + Clear + Cancel + Save)
-        let barMinW = pad + 40 + 6 + 50 + 20 + 70 + 6 + 64 + pad  // 296
-        let w: CGFloat = isFighting
-            ? pad + dpadW + pad + dpadW + pad    // 384
-            : pad + dpadW + pad                  // 202
-        let winW = max(w, barMinW)
-        let winH = pad + seqH + secGap + btnAreaH + secGap + barH + pad
-
-        sheetWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: winW, height: winH),
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false
-        )
-        sheetWindow.title = "Edit: \(name)"
-        sheetWindow.backgroundColor = surgeWindowColor
-
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: winW, height: winH))
-        content.wantsLayer = true
-        sheetWindow.contentView = content
-
-        // Current sequence display (top)
-        sequenceLabel = NSTextField(labelWithString: "")
-        sequenceLabel.font = NSFont.monospacedSystemFont(ofSize: 18, weight: .medium)
-        sequenceLabel.textColor = .white
-        sequenceLabel.alignment = .center
-        sequenceLabel.lineBreakMode = .byTruncatingHead
-        sequenceLabel.frame = NSRect(x: pad, y: winH - pad - seqH, width: winW - pad * 2, height: seqH)
-        content.addSubview(sequenceLabel)
-
-        super.init()
-        updateDisplay()
-
-        // Button area origin (bottom of button region)
-        let btnAreaBottom = pad + barH + secGap
-        let dpadH = bs * 2 + gap  // 106
-        let dpadX = pad
-        // Vertically center D-pad within button area
-        let dpadY = btnAreaBottom + (btnAreaH - dpadH) / 2
-
-        // D-pad cross layout:
-        //      [↑]
-        // [←] [↓] [→]
-        let dpadButtons: [(ComboInput, CGFloat, CGFloat)] = [
-            (.up,    dpadX + bs + gap,         dpadY + bs + gap),  // top center
-            (.left,  dpadX,                    dpadY),             // bottom left
-            (.down,  dpadX + bs + gap,         dpadY),             // bottom center
-            (.right, dpadX + (bs + gap) * 2,   dpadY),             // bottom right
-        ]
-
-        for (input, bx, by) in dpadButtons {
-            let btn = makeInputButton(input.rawValue, size: bs)
-            btn.frame.origin = NSPoint(x: bx, y: by)
-            btn.tag = ComboInput.allCases.firstIndex(of: input)!
-            btn.target = self
-            btn.action = #selector(inputTapped(_:))
-            content.addSubview(btn)
-        }
-
-        // Face buttons (fighting style only) — Xbox diamond layout:
-        //      [Y]
-        //  [X]     [B]
-        //      [A]
-        if isFighting {
-            let faceX = pad + dpadW + pad
-            let faceY = btnAreaBottom
-
-            let faceButtons: [(ComboInput, CGFloat, CGFloat)] = [
-                (.y, faceX + bs + gap,         faceY + (bs + gap) * 2), // top
-                (.x, faceX,                    faceY + bs + gap),       // left
-                (.b, faceX + (bs + gap) * 2,   faceY + bs + gap),       // right
-                (.a, faceX + bs + gap,         faceY),                  // bottom
-            ]
-
-            for (input, bx, by) in faceButtons {
-                let btn = makeInputButton(input.displayLabel(labels), size: bs)
-                btn.frame.origin = NSPoint(x: bx, y: by)
-                btn.tag = ComboInput.allCases.firstIndex(of: input)!
-                btn.target = self
-                btn.action = #selector(inputTapped(_:))
-                content.addSubview(btn)
-            }
-        }
-
-        // Bottom bar: ⌫, Clear, Cancel, Save
-        let barY: CGFloat = pad
-
-        let backBtn = NSButton(title: "⌫", target: self, action: #selector(backspace))
-        backBtn.bezelStyle = .recessed
-        backBtn.font = NSFont.systemFont(ofSize: 14)
-        backBtn.frame = NSRect(x: pad, y: barY, width: 40, height: barH)
-        content.addSubview(backBtn)
-
-        let clearBtn = NSButton(title: "Clear", target: self, action: #selector(clearAll))
-        clearBtn.bezelStyle = .recessed
-        clearBtn.font = NSFont.systemFont(ofSize: 11)
-        clearBtn.frame = NSRect(x: pad + 46, y: barY, width: 50, height: barH)
-        content.addSubview(clearBtn)
-
-        let cancelBtn = NSButton(title: "Cancel", target: self, action: #selector(cancel))
-        cancelBtn.bezelStyle = .rounded
-        cancelBtn.font = NSFont.systemFont(ofSize: 12)
-        cancelBtn.frame = NSRect(x: winW - 160, y: barY, width: 70, height: barH)
-        cancelBtn.keyEquivalent = "\u{1b}" // Escape
-        content.addSubview(cancelBtn)
-
-        let saveBtn = NSButton(title: "Save", target: self, action: #selector(save))
-        saveBtn.bezelStyle = .rounded
-        saveBtn.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        saveBtn.frame = NSRect(x: winW - 84, y: barY, width: 64, height: barH)
-        saveBtn.keyEquivalent = "\r"
-        saveBtn.contentTintColor = .white
-        saveBtn.bezelColor = .systemBlue
-        content.addSubview(saveBtn)
-    }
-
-    private func makeInputButton(_ title: String, size: CGFloat) -> NSButton {
-        let btn = NSButton(frame: NSRect(x: 0, y: 0, width: size, height: size))
-        btn.title = title
-        btn.bezelStyle = .regularSquare
-        btn.font = NSFont.systemFont(ofSize: 18, weight: .medium)
-        btn.isBordered = true
-        btn.wantsLayer = true
-        btn.layer?.cornerRadius = 8
-        return btn
-    }
-
-    private func updateDisplay() {
-        if inputs.isEmpty {
-            sequenceLabel.stringValue = "(empty)"
-            sequenceLabel.textColor = NSColor.white.withAlphaComponent(0.3)
-        } else {
-            sequenceLabel.stringValue = inputs.map { $0.displayLabel(labels) }.joined(separator: "  ")
-            sequenceLabel.textColor = .white
-        }
-    }
-
-    @objc private func inputTapped(_ sender: NSButton) {
-        let input = ComboInput.allCases[sender.tag]
-        inputs.append(input)
-        updateDisplay()
-    }
-
-    @objc private func backspace() {
-        guard !inputs.isEmpty else { return }
-        inputs.removeLast()
-        updateDisplay()
-    }
-
-    @objc private func clearAll() {
-        inputs = []
-        updateDisplay()
-    }
-
-    @objc private func cancel() {
-        sheetWindow.sheetParent?.endSheet(sheetWindow, returnCode: .cancel)
-    }
-
-    @objc private func save() {
-        sheetWindow.sheetParent?.endSheet(sheetWindow, returnCode: .OK)
-    }
 }
 
 private final class SurfaceCardView: FlippedView {
