@@ -194,12 +194,14 @@ final class GamepadManager {
         let prompts = isLT ? mapping.ltPrompts : mapping.rtPrompts
         let labels = mapping.labels
         let triggerLabel = isLT ? labels.lt : labels.rt
+        // Only LT has the LB → ⌘⌥ chord; show it as a footer hint on the LT sheet.
+        let hint = isLT ? "\(labels.lb) → ⌘⌥ Typeless" : nil
         overlay.showPromptSheet(label: triggerLabel, labels: labels, prompts: [
             ("a", prompts.a),
             ("b", prompts.b),
             ("x", prompts.x),
             ("y", prompts.y),
-        ])
+        ], extraHint: hint)
     }
 
     // MARK: - Button Actions

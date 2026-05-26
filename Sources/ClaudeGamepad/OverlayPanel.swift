@@ -211,7 +211,7 @@ final class OverlayPanel: NSPanel {
 
     /// Show a prompt cheat sheet for trigger combos (LT/RT + face buttons).
     /// Radial layout: diamond in center, prompts around it on cards.
-    func showPromptSheet(label: String, labels: ControllerLabels, prompts: [(button: String, prompt: String)]) {
+    func showPromptSheet(label: String, labels: ControllerLabels, prompts: [(button: String, prompt: String)], extraHint: String? = nil) {
         DispatchQueue.main.async { [self] in
             hideTimer?.invalidate()
 
@@ -240,6 +240,9 @@ final class OverlayPanel: NSPanel {
             let cardGap: CGFloat = 12
             let sideCardMaxW: CGFloat = 200
             let tbCardMaxW: CGFloat = 260
+            let hintH: CGFloat = 18
+            let hintGap: CGFloat = 8
+            let hintExtra: CGFloat = extraHint == nil ? 0 : (hintH + hintGap)
 
             // Measure all 4 cards
             let cardY = makeCard(text: promptsDict["y"] ?? "", color: buttonColors["y"]!, font: font, maxWidth: tbCardMaxW)
@@ -255,11 +258,11 @@ final class OverlayPanel: NSPanel {
             let centerColW = max(diamondW, cardY.size.width, cardA.size.width)
             let panelWidth = outerPad + cardX.size.width + cardGap + centerColW + cardGap + cardB.size.width + outerPad
             let sideRowH = max(diamondH, cardX.size.height, cardB.size.height)
-            let panelHeight = outerPad + titleH + titleGap + cardY.size.height + cardGap + sideRowH + cardGap + cardA.size.height + outerPad
+            let panelHeight = outerPad + titleH + titleGap + cardY.size.height + cardGap + sideRowH + cardGap + cardA.size.height + hintExtra + outerPad
 
             // Center of diamond
             let cx = outerPad + cardX.size.width + cardGap + centerColW / 2
-            let cyBase = outerPad + cardA.size.height + cardGap
+            let cyBase = outerPad + hintExtra + cardA.size.height + cardGap
             let cy = cyBase + sideRowH / 2
 
             // ── Title ──
@@ -312,6 +315,15 @@ final class OverlayPanel: NSPanel {
                 y: cy - cardB.size.height / 2
             )
             promptSheetContainer.addSubview(cardB.view)
+
+            if let extraHint {
+                let hintField = NSTextField(labelWithString: extraHint)
+                hintField.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+                hintField.textColor = NSColor.white.withAlphaComponent(0.6)
+                hintField.alignment = .center
+                hintField.frame = NSRect(x: outerPad, y: outerPad, width: panelWidth - outerPad * 2, height: hintH)
+                promptSheetContainer.addSubview(hintField)
+            }
 
             promptSheetContainer.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
             setContentSize(NSSize(width: panelWidth, height: panelHeight))
