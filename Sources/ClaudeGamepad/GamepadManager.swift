@@ -11,9 +11,6 @@ final class GamepadManager {
     private var presetIndex = 0
     private var isInPresetMenu = false
     private var isVoiceActive = false
-    private var isInCommandMode = false
-    private var comboBuffer: [ComboInput] = []
-    private var comboTimer: Timer?
     private var lastPartialText = ""
 
     var onControllerConnected: ((String) -> Void)?
@@ -155,8 +152,6 @@ final class GamepadManager {
 
     private var ltHeld = false
     private var rtHeld = false
-    private var commandModeEnteredAt: TimeInterval = 0
-    private let mouseTapThreshold: TimeInterval = 0.30
 
     private func onTriggerChanged(isLT: Bool, value: Float, pressed: Bool) {
         let held = value > 0.1
@@ -167,57 +162,44 @@ final class GamepadManager {
         let bothNow = ltHeld && rtHeld
         let bothBefore = wasLT && wasRT
 
-        // L2+R2 together → enter command mode
+        // LT+RT pressed together → toggle mouse mode (once, on entering both-held)
         if bothNow && !bothBefore {
-            enterCommandMode()
+            toggleMouseMode()
             return
         }
 
-        // Leaving command mode: one trigger released
-        if !bothNow && bothBefore && isInCommandMode {
-            // A quick LT+RT tap with no combo input → toggle mouse mode.
-            let heldDuration = ProcessInfo.processInfo.systemUptime - commandModeEnteredAt
-            let wasTap = comboBuffer.isEmpty && heldDuration < mouseTapThreshold
-            exitCommandMode()
-            if wasTap {
-                toggleMouseMode()
-                return
-            }
-            // If the other trigger is still held, show its cheat sheet
+        // Leaving both-held but one trigger still down → show that trigger's cheat sheet
+        if !bothNow && bothBefore {
             if ltHeld || rtHeld {
-                let useLeft = ltHeld
-                let prompts = useLeft ? mapping.ltPrompts : mapping.rtPrompts
-                let labels = mapping.labels
-                let triggerLabel = useLeft ? labels.lt : labels.rt
-                overlay.showPromptSheet(label: triggerLabel, labels: labels, prompts: [
-                    ("a", prompts.a),
-                    ("b", prompts.b),
-                    ("x", prompts.x),
-                    ("y", prompts.y),
-                ])
-            }
-            return
-        }
-
-        // Single trigger → show cheat sheet (only if not in command mode)
-        if !isInCommandMode {
-            if held && (isLT ? !wasLT : !wasRT) && !bothNow {
-                let prompts = isLT ? mapping.ltPrompts : mapping.rtPrompts
-                let labels = mapping.labels
-                let triggerLabel = isLT ? labels.lt : labels.rt
-                overlay.showPromptSheet(label: triggerLabel, labels: labels, prompts: [
-                    ("a", prompts.a),
-                    ("b", prompts.b),
-                    ("x", prompts.x),
-                    ("y", prompts.y),
-                ])
-            }
-
-            // Hide when both triggers are released
-            if !ltHeld && !rtHeld && (wasLT || wasRT) {
+                showTriggerCheatSheet(isLT: ltHeld)
+            } else {
                 overlay.fadeOut()
             }
+            return
         }
+
+        // Single trigger newly held → show its quick-prompt cheat sheet
+        if held && (isLT ? !wasLT : !wasRT) && !bothNow {
+            showTriggerCheatSheet(isLT: isLT)
+        }
+
+        // Hide when both triggers are released
+        if !ltHeld && !rtHeld && (wasLT || wasRT) {
+            overlay.fadeOut()
+        }
+    }
+
+    /// Show the LT/RT quick-prompt cheat sheet for the given trigger.
+    private func showTriggerCheatSheet(isLT: Bool) {
+        let prompts = isLT ? mapping.ltPrompts : mapping.rtPrompts
+        let labels = mapping.labels
+        let triggerLabel = isLT ? labels.lt : labels.rt
+        overlay.showPromptSheet(label: triggerLabel, labels: labels, prompts: [
+            ("a", prompts.a),
+            ("b", prompts.b),
+            ("x", prompts.x),
+            ("y", prompts.y),
+        ])
     }
 
     // MARK: - Button Actions
@@ -281,12 +263,7 @@ final class GamepadManager {
     }
 
     /// Handle a face button with voice/preset/modifier/command checks.
-    private func handleFaceButton(action: ButtonAction, ltPrompt: String, rtPrompt: String, comboInput: ComboInput) {
-        // Command mode: feed into combo buffer
-        if isInCommandMode {
-            comboAppend(comboInput)
-            return
-        }
+    private func handleFaceButton(action: ButtonAction, ltPrompt: String, rtPrompt: String) {
         // Voice mode: A = confirm, B = cancel
         if isVoiceActive {
             if action == mapping.buttonActions.a || action == .enter {
@@ -343,28 +320,28 @@ final class GamepadManager {
 
     private func onButtonA() {
         handleFaceButton(action: mapping.buttonActions.a,
-                         ltPrompt: mapping.ltPrompts.a, rtPrompt: mapping.rtPrompts.a, comboInput: .a)
+                         ltPrompt: mapping.ltPrompts.a, rtPrompt: mapping.rtPrompts.a)
     }
 
     private func onButtonB() {
         handleFaceButton(action: mapping.buttonActions.b,
-                         ltPrompt: mapping.ltPrompts.b, rtPrompt: mapping.rtPrompts.b, comboInput: .b)
+                         ltPrompt: mapping.ltPrompts.b, rtPrompt: mapping.rtPrompts.b)
     }
 
     private func onButtonX() {
         handleFaceButton(action: mapping.buttonActions.x,
-                         ltPrompt: mapping.ltPrompts.x, rtPrompt: mapping.rtPrompts.x, comboInput: .x)
+                         ltPrompt: mapping.ltPrompts.x, rtPrompt: mapping.rtPrompts.x)
     }
 
     private func onButtonY() {
         handleFaceButton(action: mapping.buttonActions.y,
-                         ltPrompt: mapping.ltPrompts.y, rtPrompt: mapping.rtPrompts.y, comboInput: .y)
+                         ltPrompt: mapping.ltPrompts.y, rtPrompt: mapping.rtPrompts.y)
     }
 
     private func onLB() {
         // LT + LB → ⌘⌥ (Typeless modifier-only voice trigger).
         // Only when LT is held alone (not in LT+RT command mode).
-        if ltHeld && !isInCommandMode {
+        if ltHeld {
             overlay.showMessage("⚡ ⌘⌥ Typeless")
             keys.tapModifiers(command: true, control: false, option: true, shift: false)
             return
@@ -413,11 +390,6 @@ final class GamepadManager {
     }
 
     private func onDpadPress(_ direction: ComboInput) {
-        if isInCommandMode {
-            comboAppend(direction)
-            return
-        }
-
         if isInPresetMenu {
             switch direction {
             case .up:
@@ -499,27 +471,7 @@ final class GamepadManager {
                        dy: CGFloat(-ay) * speed * dt)
     }
 
-    // MARK: - Command Mode
-
-    private var activeCombos: [ComboEntry] {
-        mapping.combos.filter { $0.style == mapping.comboStyle }
-    }
-
-    private func enterCommandMode() {
-        commandModeEnteredAt = ProcessInfo.processInfo.systemUptime
-        isInCommandMode = true
-        comboBuffer = []
-        comboTimer?.invalidate()
-        overlay.showCommandMode(inputs: [], combos: activeCombos, style: mapping.comboStyle, labels: mapping.labels)
-    }
-
-    private func exitCommandMode() {
-        isInCommandMode = false
-        comboBuffer = []
-        comboTimer?.invalidate()
-        comboTimer = nil
-        overlay.fadeOut()
-    }
+    // MARK: - Mouse Mode
 
     /// Toggle the left stick between scroll and mouse-cursor mode, persisting the choice.
     private func toggleMouseMode() {
@@ -531,53 +483,6 @@ final class GamepadManager {
             mouseTimer = nil
         }
         overlay.showMessage(newMode == .mouse ? "🖱️ Mouse mode ON" : "🖱️ Mouse mode OFF")
-    }
-
-    private func comboAppend(_ input: ComboInput) {
-        guard isInCommandMode else { return }
-
-        // In fighting style, face buttons are only allowed as finishers
-        if mapping.comboStyle == .helldivers {
-            guard [.up, .down, .left, .right].contains(input) else { return }
-        }
-
-        comboBuffer.append(input)
-        comboTimer?.invalidate()
-
-        // Check for exact match
-        if let match = activeCombos.first(where: { $0.inputs == comboBuffer }) {
-            let name = match.name
-            let prompt = match.prompt
-            isInCommandMode = false
-            comboBuffer = []
-            comboTimer = nil
-            overlay.showMessage("🎯 \(name): \(prompt)", duration: 2)
-            keys.typeString(prompt)
-            return
-        }
-
-        // Check if any combo still starts with our buffer (partial match)
-        let hasPartial = activeCombos.contains { combo in
-            combo.inputs.count > comboBuffer.count &&
-            Array(combo.inputs.prefix(comboBuffer.count)) == comboBuffer
-        }
-
-        if hasPartial {
-            overlay.showCommandMode(inputs: comboBuffer, combos: activeCombos, style: mapping.comboStyle, labels: mapping.labels)
-            // Reset timeout
-            comboTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-                self?.overlay.showMessage("⚠️ Combo timed out")
-                self?.exitCommandMode()
-            }
-        } else {
-            // No match possible
-            overlay.showMessage("❌ Unknown combo")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self, self.isInCommandMode else { return }
-                self.comboBuffer = []
-                self.overlay.showCommandMode(inputs: [], combos: self.activeCombos, style: self.mapping.comboStyle, labels: self.mapping.labels)
-            }
-        }
     }
 
     // MARK: - Preset Menu
