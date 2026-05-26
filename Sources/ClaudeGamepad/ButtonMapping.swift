@@ -180,24 +180,7 @@ enum ComboInput: String, Codable, CaseIterable {
     }
 }
 
-/// Command combo input style.
-enum ComboStyle: String, Codable, CaseIterable {
-    case fighting = "Fighting Game"
-    case helldivers = "Helldivers 2"
-}
 
-/// A command combo: a sequence of inputs that triggers a prompt.
-struct ComboEntry: Codable {
-    var name: String
-    var inputs: [ComboInput]
-    var prompt: String
-    var style: ComboStyle
-
-    /// Display string for the input sequence.
-    var inputDisplay: String {
-        inputs.map(\.rawValue).joined(separator: " ")
-    }
-}
 
 /// A category of preset prompts.
 struct PresetCategory: Codable {
@@ -283,21 +266,6 @@ struct ButtonMapping: Codable {
         ]),
     ]
 
-    static let defaultCombos: [ComboEntry] = [
-        // Helldivers-style (d-pad only)
-        ComboEntry(name: "Reinforce", inputs: [.up, .down, .right, .left, .up], prompt: "fix all the errors", style: .helldivers),
-        ComboEntry(name: "Resupply", inputs: [.down, .down, .up, .right], prompt: "add the missing dependencies", style: .helldivers),
-        ComboEntry(name: "Air Strike", inputs: [.up, .right, .down, .right], prompt: "delete all unused code", style: .helldivers),
-        ComboEntry(name: "Shield", inputs: [.down, .up, .left, .right], prompt: "add error handling to this", style: .helldivers),
-        ComboEntry(name: "Orbital", inputs: [.right, .right, .up], prompt: "refactor this completely", style: .helldivers),
-        ComboEntry(name: "EAT", inputs: [.up, .down, .left, .up, .right], prompt: "write comprehensive tests", style: .helldivers),
-        // Fighting-game-style (directions + face button finisher)
-        ComboEntry(name: "Hadouken", inputs: [.down, .right, .a], prompt: "run the tests", style: .fighting),
-        ComboEntry(name: "Shoryuken", inputs: [.right, .down, .right, .a], prompt: "fix the bug", style: .fighting),
-        ComboEntry(name: "Tatsumaki", inputs: [.down, .left, .b], prompt: "explain this code", style: .fighting),
-        ComboEntry(name: "Sonic Boom", inputs: [.left, .right, .x], prompt: "looks good, commit this", style: .fighting),
-        ComboEntry(name: "Super", inputs: [.down, .right, .down, .right, .a], prompt: "find and fix all bugs in this file", style: .fighting),
-    ]
 
     static let `default`: ButtonMapping = {
         if let url = AppResources.url(forResource: "default_config", withExtension: "json"),
@@ -327,9 +295,7 @@ struct ButtonMapping: Codable {
                 "select": [KeyCombo(key: "T", command: true)],
                 "lb": [KeyCombo(key: "W", command: true)],
             ],
-            controllerStyle: .ps5,
-            comboStyle: .helldivers,
-            combos: defaultCombos
+            controllerStyle: .ps5
         )
     }()
 
@@ -344,11 +310,6 @@ struct ButtonMapping: Codable {
 
     /// Convenience accessor for labels based on current style.
     var labels: ControllerLabels { ControllerLabels(style: controllerStyle) }
-
-    // MARK: - Command Combos
-
-    var comboStyle: ComboStyle
-    var combos: [ComboEntry]
 
     // MARK: - Left Stick
 
@@ -368,7 +329,6 @@ struct ButtonMapping: Codable {
          ltPrompts: QuickPrompts, rtPrompts: QuickPrompts,
          buttonActions: ButtonActions, guideKeyCombosMap: [String: [KeyCombo]],
          controllerStyle: ControllerStyle,
-         comboStyle: ComboStyle, combos: [ComboEntry],
          leftStickMode: LeftStickMode = .scroll, mouseSpeed: Float = 1200) {
         self.categories = categories
         self.presetPrompts = presetPrompts
@@ -377,8 +337,6 @@ struct ButtonMapping: Codable {
         self.buttonActions = buttonActions
         self.guideKeyCombosMap = guideKeyCombosMap
         self.controllerStyle = controllerStyle
-        self.comboStyle = comboStyle
-        self.combos = combos
         self.leftStickMode = leftStickMode
         self.mouseSpeed = mouseSpeed
     }
@@ -388,7 +346,7 @@ struct ButtonMapping: Codable {
         case guideKeyCombosMap       // new per-button map
         case guideKeyCombos          // legacy array key
         case guideKeyCombo           // legacy single-value key
-        case controllerStyle, comboStyle, combos
+        case controllerStyle
         case leftStickMode, mouseSpeed
     }
 
@@ -401,8 +359,6 @@ struct ButtonMapping: Codable {
         try container.encode(buttonActions, forKey: .buttonActions)
         try container.encode(guideKeyCombosMap, forKey: .guideKeyCombosMap)
         try container.encode(controllerStyle, forKey: .controllerStyle)
-        try container.encode(comboStyle, forKey: .comboStyle)
-        try container.encode(combos, forKey: .combos)
         try container.encode(leftStickMode, forKey: .leftStickMode)
         try container.encode(mouseSpeed, forKey: .mouseSpeed)
     }
@@ -426,8 +382,6 @@ struct ButtonMapping: Codable {
             guideKeyCombosMap = ["start": [KeyCombo(key: "G", command: true)]]
         }
         controllerStyle = try container.decodeIfPresent(ControllerStyle.self, forKey: .controllerStyle) ?? .xbox
-        comboStyle = try container.decode(ComboStyle.self, forKey: .comboStyle)
-        combos = try container.decode([ComboEntry].self, forKey: .combos)
         leftStickMode = try container.decodeIfPresent(LeftStickMode.self, forKey: .leftStickMode) ?? .scroll
         mouseSpeed = try container.decodeIfPresent(Float.self, forKey: .mouseSpeed) ?? 1200
     }

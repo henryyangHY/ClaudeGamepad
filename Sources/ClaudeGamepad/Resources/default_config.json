@@ -30,19 +30,5 @@
     "lb":     [{ "key": "W", "command": true, "control": false, "option": false, "shift": false }],
     "rightStickClick": [{ "key": "W", "command": true, "control": false, "option": false, "shift": false }]
   },
-  "controllerStyle": "PS5",
-  "comboStyle": "Helldivers 2",
-  "combos": [
-    { "name": "Reinforce",  "inputs": ["↑","↓","→","←","↑"], "prompt": "fix all the errors",              "style": "Helldivers 2" },
-    { "name": "Resupply",   "inputs": ["↓","↓","↑","→"],     "prompt": "add the missing dependencies",    "style": "Helldivers 2" },
-    { "name": "Air Strike", "inputs": ["↑","→","↓","→"],     "prompt": "delete all unused code",           "style": "Helldivers 2" },
-    { "name": "Shield",     "inputs": ["↓","↑","←","→"],     "prompt": "add error handling to this",       "style": "Helldivers 2" },
-    { "name": "Orbital",    "inputs": ["→","→","↑"],         "prompt": "refactor this completely",          "style": "Helldivers 2" },
-    { "name": "EAT",        "inputs": ["↑","↓","←","↑","→"], "prompt": "write comprehensive tests",        "style": "Helldivers 2" },
-    { "name": "Hadouken",   "inputs": ["↓","→","A"],         "prompt": "run the tests",                    "style": "Fighting Game" },
-    { "name": "Shoryuken",  "inputs": ["→","↓","→","A"],     "prompt": "fix the bug",                      "style": "Fighting Game" },
-    { "name": "Tatsumaki",  "inputs": ["↓","←","B"],         "prompt": "explain this code",                "style": "Fighting Game" },
-    { "name": "Sonic Boom", "inputs": ["←","→","X"],         "prompt": "looks good, commit this",           "style": "Fighting Game" },
-    { "name": "Super",      "inputs": ["↓","→","↓","→","A"], "prompt": "find and fix all bugs in this file","style": "Fighting Game" }
-  ]
+  "controllerStyle": "PS5"
 }
