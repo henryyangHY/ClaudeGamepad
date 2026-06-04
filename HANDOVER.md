@@ -1,131 +1,140 @@
 # ClaudeGamepad — Session Handover
 
-**Date:** 2026-05-22 (updated)
-**Branch:** `add-always-allow` (fork: `henryyangHY/ClaudeGamepad`)
+**Last session:** 2026-06-04
+**Expected pickup:** ~2026-06-11 (約一週後)
+**Branch:** `main` (origin: `henryyangHY/ClaudeGamepad`)
 **Repo path:** `~/Documents/Claude/projects/ClaudeGamepad`
-**Build command:** `swift build -c release && .build/release/ClaudeGamepad`
+**Daily-use build:** `./build-app.sh` → produces `ClaudeGamepad.app`
 
 ---
 
-## 專案背景
+## 一句話狀態
 
-把 8BitDo Xbox 搖桿改造成 Claude Code vibe-coding 鍵盤。基礎是 fork 自 `cch123/ClaudeGamepad`，在此之上新增：
-
-1. **Always Allow 按鈕**：按一下送出 `2` + Enter，選 Claude Code 許可對話框的「Yes, don't ask again」
-2. **L3 / R3 獨立設定**：原版 L3/R3 共用一個 action，現在分開
-3. **L3 = Typeless 語音（⌘⌥ modifier-only hotkey）**
-4. **R3 = /clear**
-5. **modifier-only combo 支援**（只有 modifier 鍵、無字母鍵）
+ROADMAP item 1~5 全部完成、combo/command mode 已徹底移除、README 同步至現行行為。專案在 macOS 26、Opus 4.7 環境下可正常 build / 打包 / codesign,**剩 ROADMAP item 6(Controller Layout Diagram)未做**。
 
 ---
 
-## 本次 Session 完成的工作
+## Pickup 時請先跑這些指令喚醒記憶
 
-### 已 commit & pushed (commit `2d8185c`, branch `add-always-allow`)
+```bash
+cd ~/Documents/Claude/projects/ClaudeGamepad
+git log --oneline -10              # 看最近 commit
+cat ROADMAP.md | head -120         # 看待辦
+swift build                         # 驗證可編譯
+./build-app.sh                      # 打 .app(可選)
+```
 
-所有 Swift 改動一次 commit，包含：
-
-- `ButtonMapping.swift`：`alwaysAllow` case、L3/R3 拆分、`KeyCombo` 擴充
-- `GamepadConfigView.swift`：stickR slot、modifier-only combo fix
-- `GamepadManager.swift`：`alwaysAllow` case、L3/R3 handlers、**LT 閾值 0.3 → 0.1**
-- `KeySimulator.swift`：`typeAlwaysAllow()`、`tapModifiers()`、`pressCombo()` modifier-only 分支
-- `Resources/default_config.json`：`stickClick` 拆成 `leftStickClick` + `rightStickClick`
-- `SettingsWindow.swift`：新欄位對應
-- `SpeechEngine.swift`：完全替換成 no-op stub（macOS 26 TCC crash fix）
-
-### Config 修正（user config.json）
-
-**路徑：** `~/Library/Application Support/ClaudeGamepad/config.json`
-
-改動：
-- `lb` action：`"Combo"` (⌘W ← 危險！) → `"Always Allow (2 + Enter)"`
-- `start` combo：`⌘G` → `⌘T`（開新 tab）
-- `select` action：`"Combo"` (⌘T) → `"None"`（使用者尚未決定用途）
+如果忘了現在按鍵映射,直接看 `README-zh.md` 的「預設按鍵對應」表(這次 session 剛同步過)。
 
 ---
 
-## 目前 User Config 狀態
+## 本次 Session(2026-06-04)做了什麼
+
+### 1. 驗收 ROADMAP item 1~5(全部對得上 commit)
+
+| # | 功能 | 對應 commit |
+|---|---|---|
+| 1 | L3 → Left Click | `2a46e6a` + `60f0cf3` (osascript → CGEvent 修正) |
+| 2 | LT+LB → ⌘⌥ Typeless + LT cheat sheet hint | `2956fa3` + `dee341e` |
+| 3 | Menu(Start)→ ⌘⇧] 下個分頁 | `2e7c6d4` + `12a9b1d` (符號鍵修正) |
+| 4 | R3 → ⌘W 關閉 | `e32b6e0` |
+| 5 | LT+RT tap → 切換 mouse mode | `aa0ba27` |
+
+外加大型 refactor(`b611a36` + `4e6014d` + `5d1dd53` + `1892660`):combo / command mode 從 runtime、UI、model、default config 全部移除。`ComboInputEditor`、`Command Combos` tab、`showCommandMode` overlay、`combos` / `comboStyle` 欄位都不存在了。`SettingsWindow` 現在 4 個 tab(General / Button Mapping / Prompts / Speech)。
+
+### 2. 驗證 build & 打包
+
+- `swift build`(debug)✅
+- `./build-app.sh`(release + ad-hoc sign)✅
+- `codesign --verify` ✅ valid on disk / satisfies DR
+- `default_config.json` / `default_speech_settings.json` 解析正常
+- Sources/ 全無 combo-mode 殘留引用
+
+### 3. 同步兩份 README(本次唯一未 commit 的改動)
+
+兩份 README 之前還在描述「Command combos / 指令連招」、L3/R3 = Voice input、五個 tab、`showtime / fix the failing tests` 等舊預設。已全部改成現行行為:
+
+- Default Button Mapping 表完整重寫
+- Quick Prompts 改成 `codex/claude/copilot/gemini`(LT)與 RT 的新 prompts
+- 新增「Trigger Chords / 扳機和弦」section
+- Configuration 改為 4 個 tab、移除 Command Combos 整節
+- Voice Input 改述為「需手動指派 Voice Input action」
+- 架構檔案結構補上 `AppResources.swift`、註記 `SpeechEngine` 是 stub
+
+---
+
+## 目前 default_config.json 按鍵映射
 
 ```
 buttonActions:
-  a               → Enter
-  b               → Ctrl+C
-  x               → Accept (y+Enter)
-  y               → Reject (n+Enter)
-  lb              → Always Allow (2 + Enter)  ← 已修正
+  a, b, x, y      → Enter / Ctrl+C / Accept / Reject (不變)
+  lb              → Combo → ⌘W (close)
   rb              → Escape
-  start (Menu ≡)  → Combo → ⌘T (開新 tab)   ← 已修正
-  select (View ⊞) → None                     ← 暫停用，使用者未決定
-  leftStickClick  → Combo → ⌘⌥ (Typeless)
-  rightStickClick → /clear
+  start           → Combo → ⌘⇧] (next terminal tab)
+  select          → Combo → ⌘T (new tab)
+  leftStickClick  → Left Click   ← 之前是 Voice Input
+  rightStickClick → Combo → ⌘W   ← 之前是 Voice Input
+  dpad            → Arrow keys
 
-guideKeyCombosMap:
-  "lb"             : ⌘W    ← config 裡還有此 entry 但 lb 已改為 Always Allow，不會觸發
-  "start"          : ⌘T    ← 開新 tab
-  "leftStickClick" : ⌘⌥   ← Typeless 語音（modifier-only）
+trigger chords (寫在 GamepadManager 程式邏輯內,不在 config):
+  LT + LB         → ⌘⌥ Typeless(tapModifiers)
+  LT + RT (tap)   → toggle leftStickMode(scroll ↔ mouse,持久化)
+  LT + RT + Select→ Quit override(安全閘)
+
+LT prompts: codex / claude / copilot / gemini
+RT prompts: run the tests / show me the diff / looks good, commit this and push / refactor this to be cleaner
 ```
 
----
-
-## 已知問題（剩餘待驗證）
-
-### 問題：LT + A / LT + B 組合鍵（需實機測試）
-
-**修正狀態：** 已把 LT 閾值從 0.3 降到 0.1，理論上應該修好了。
-
-**現象（修前）**：按住 LT trigger 再按 A 或 B，沒有把 ltPrompt 文字送到 terminal。  
-**根因推測**：8BitDo LT trigger 的 analog value 可能低於原本的 0.3 threshold。  
-**驗證方法**：
-1. 啟動 app：`swift build -c release && .build/release/ClaudeGamepad`
-2. 按住 LT（應出現 overlay cheat sheet 顯示 `codex / claude / copilot / gemini`）
-3. 按 A → terminal 應輸入 `codex` + Enter
-4. 按 B → terminal 應輸入 `claude` + Enter
-
-如果 overlay 仍不出現 → 再把閾值改低到 0.05 試試。
+⚠️ **個人 runtime config 可能不同**:`~/Library/Application Support/ClaudeGamepad/config.json` 是使用者層級 override,跟 repo 內的 `default_config.json` 可能不同步。若 pickup 時想看「我目前實際用的」,讀 `~/Library/Application Support/ClaudeGamepad/config.json`。
 
 ---
 
-## 下一個 Session 的優先任務
+## Pickup 後的 ROADMAP
 
-1. **實機測試 LT+A/B**：確認閾值修正有效
-2. **決定 Select 的用途**：使用者尚未決定 View(⊞) 要做什麼
-3. **（可選）ltPrompts 自訂**：目前是 `codex/claude/copilot/gemini`，考慮改成自己慣用的 slash commands 或提示詞
+### 已完成
+- [x] Item 1 — L3 mouse click
+- [x] Item 2 — LT+LB → ⌘⌥ Typeless
+- [x] Item 3 — Menu → terminal tab(⌘⇧])
+- [x] Item 4 — R3 → ⌘W
+- [x] Item 5 — LT+RT → toggle mouse mode
+
+### 待辦
+
+**Item 6 — Controller Layout Diagram in README**(ROADMAP.md 唯一剩下的項目)
+- 用 SVG 在 Xbox/PS5 controller outline 上加 callout 標記每個按鍵預設動作
+- 兩個變體:`screenshots/controller-layout-xbox.png` + `controller-layout-ps5.png`
+- 放進 README.md / README-zh.md 的「Default Button Mapping」section **上方**
+- 工具:Figma / Canva / 直接寫 SVG 都行
+- 現成素材:`Sources/ClaudeGamepad/Resources/xbox.svg` + `ps5.svg`(可當底圖)
+
+### 額外想到但 ROADMAP 沒寫的點
+
+- 是否要把 `Voice Input` 重新預設綁到某個閒置按鍵?目前完全無預設綁定,新使用者不會發現有這功能。候選:LT+RB?或 Select(目前是 ⌘T,但 Start 已經是 ⌘⇧],分頁類功能有點冗)。
+- `ButtonMapping.swift` line 236-237 in-code default 還是 `.voiceInput`(會被 JSON 覆寫),想清理可以順手改。
+- README 的 "trigger combos" 用語在截圖標題還在,語意上指 LT/RT+face,沒問題,但若 Item 6 要新增 layout diagram 順手檢視一下是否需要術語統一。
 
 ---
 
-## Build & 執行方式
+## 環境 / 工具備忘
 
-```bash
-swift build -c release 2>&1 | tail -5
-.build/release/ClaudeGamepad
+- **macOS 26** + Swift 6.x SPM。Xcode 不需要。
+- **沒有 unit test**(此專案無 test target),驗證靠 build + 實機。
+- **8BitDo Xbox style 手把** + 可能也測過 DualSense(`controllerStyle: "PS5"` 在 default config 裡)。
+- Accessibility 每次換 binary 都要重新授權(`build-app.sh` 後 copy 到 /Applications/ 會踩到)。
+
+---
+
+## Commits 等待 push 到 origin
+
+本次 session 結束時,`main` 領先 `origin/main` 6 個 commit(5 個既有 + 1 個本次的 README 同步):
+
+```
+dee341e feat: show LB -> Cmd+Option hint at bottom of LT cheat sheet
+1892660 refactor: drop combos/comboStyle from model and default config
+5d1dd53 refactor: remove Command Combos settings tab and ComboInputEditor (by Claude)
+4e6014d refactor: remove showCommandMode overlay (combo mode gone) (by Claude)
+b611a36 refactor: LT+RT toggles mouse mode, remove command-mode runtime
+<本次>  docs: sync READMEs + HANDOVER to current behavior (by Claude)
 ```
 
-第一次執行需要到 System Settings → Privacy & Security → Accessibility 手動新增 binary。
-
----
-
-## 控制器 Layout 備忘（8BitDo Xbox style）
-
-```
-LT        RT
-LB        RB
-← Stick →    ← Stick →
-  D-pad         A
-           X       B
-              Y
-     View(⊞)  Menu(≡)
-        L3    R3
-```
-
-- **View(⊞)** = `select` in code（目前 = None）
-- **Menu(≡)** = `start` in code（目前 = ⌘T 開新 tab）
-- **L3** = left thumbstick click（目前 = ⌘⌥ Typeless）
-- **R3** = right thumbstick click（目前 = /clear）
-
----
-
-## 補充：Speech.framework crash 記錄
-
-macOS 26 在 non-bundled binary 中，只要 link 了 `Speech.framework`，啟動時 TCC 就會 crash（exit 134）。原版 `SpeechEngine.swift` 使用 SFSpeechRecognizer，已被完全替換成 no-op stub。若未來想重啟語音功能，需要：
-- 改成 app bundle（有 Info.plist）
-- 或改用 WhisperEngine（本機 whisper binary，不需 TCC）
+(由本次 session 一併 push 到 origin/main。)

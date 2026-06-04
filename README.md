@@ -49,8 +49,8 @@ swift build -c release
 swift run
 
 # 3. Grant permissions when prompted
-# - Accessibility (for keyboard simulation)
-# - Speech Recognition (for voice input)
+# - Accessibility (required, for keyboard / mouse simulation)
+# - Microphone (optional, only if you wire a button to Voice Input via whisper.cpp)
 ```
 
 Connect your controller, focus your Claude Code terminal, and start coding!
@@ -61,16 +61,16 @@ Connect your controller, focus your Claude Code terminal, and start coding!
 - **Plug and play** - auto-detects Xbox / PS5 / MFi controllers via `GCController`
 - **Xbox / PS5 style toggle** - switch button labels and colors across the entire UI
 - **Full button mapping** - every button configurable via GUI settings
-- **Voice input** - press stick to speak, transcription pasted to terminal
-  - System speech recognition (zero setup)
-  - Local whisper.cpp (higher quality, offline)
+- **Quick prompts** - LT/RT + face button sends preset prompts (cheat sheet shows on trigger hold)
+- **LT+LB chord** - fires `⌘⌥` for Typeless or any overlay voice trigger, single-hand reachable
+- **LT+RT toggle** - tap both triggers to toggle left-stick mouse-cursor mode for click-driven UI
+- **L3 left click** - press the left stick to click wherever the cursor is
+- **Overlay navigation** - any button can be assigned a `Combo` action (e.g. `⌘W` close, `⌘⇧]` next tab) to drive shortcuts directly
+- **Voice input** - optional, wire any button to the Voice Input action
+  - Local whisper.cpp (offline, higher quality)
   - Optional LLM refinement (Ollama / OpenAI compatible)
-- **Quick prompts** - LT/RT + face button sends preset prompts
-- **Command combos** - hold LT+RT to enter command mode with Helldivers or fighting game style input sequences
-- **Preset menu** - Start button opens D-pad-navigable prompt list
-- **Overlay navigation** - a configurable Guide Key Combo can open Vibe Island or similar overlays, then temporarily route D-pad arrows to the frontmost overlay
-- **Combo prefix conflict detection** - settings UI warns when one combo shadows another
-- **Floating HUD** - non-intrusive overlay shows button feedback, combos, and transcription
+- **Preset menu** - configurable menu of preset prompts navigated by D-pad
+- **Floating HUD** - non-intrusive overlay shows button feedback and transcription
 - **macOS native** - pure Swift + AppKit, no Electron, no Python
 
 ## Screenshots
@@ -101,22 +101,24 @@ The app lives in your menu bar. A green indicator means your controller is conne
 
 ## Default Button Mapping
 
-| Button (Xbox / PS5) | Action |
-|----------------------|--------|
+| Button (Xbox / PS5) | Default Action |
+|----------------------|----------------|
 | A / ✕ | Enter (confirm) |
 | B / ○ | Ctrl+C (interrupt) |
 | X / □ | Accept (y + Enter) |
 | Y / △ | Reject (n + Enter) |
 | D-pad | Arrow keys |
-| LB / L1 | Tab (autocomplete) |
+| LB / L1 | `⌘W` (close window/tab) |
 | RB / R1 | Escape |
-| L3 / R3 Press | Voice input |
-| Start / Options | Preset menu |
-| Select / Create | `/clear` |
+| L3 (left stick click) | Left mouse click |
+| R3 (right stick click) | `⌘W` (close window/tab) |
+| Start / Options | `⌘⇧]` (next terminal tab) |
+| Select / Create | `⌘T` (new tab) |
 | LT / L2 + Face | Quick prompt (configurable) |
 | RT / R2 + Face | Quick prompt (configurable) |
-| LT+RT / L2+R2 | Command mode (combo input) |
-| LT + RT + Select | Quit |
+| LT + LB | `⌘⌥` (Typeless / overlay trigger) |
+| LT + RT (tap) | Toggle mouse-cursor mode for left stick |
+| LT + RT + Select | Quit (safety override) |
 
 All mappings are fully customizable in Settings.
 
@@ -185,49 +187,57 @@ cp .build/release/ClaudeGamepad /usr/local/bin/
 
 | Action | Controller Input |
 |--------|------------------|
-| Navigate code | D-pad |
+| Navigate / select | D-pad |
 | Accept suggestion | X / □ |
 | Reject suggestion | Y / △ |
-| Trigger autocomplete | LB / L1 |
-| Cancel / Interrupt | B / ○ |
 | Send / Confirm | A / ✕ |
+| Cancel / Interrupt | B / ○ |
+| Close window / tab | LB / L1 or R3 (`⌘W`) |
+| Next terminal tab | Start / Options (`⌘⇧]`) |
+| Mouse click | L3 (after enabling mouse mode) |
+| Toggle mouse mode | Tap LT + RT together |
+| Trigger Typeless / overlay | Hold LT, tap LB (`⌘⌥`) |
 
-### Voice Input
+### Voice Input (optional)
 
-1. Press **L3 / R3** (stick click)
-2. Floating HUD shows "Listening..." with a live waveform
-3. Speak your prompt (auto-detects Chinese and English)
-4. HUD shows transcription with confirm/cancel options
-5. Press **A / ✕** to paste to terminal, or **B / ○** to cancel
+Voice input is no longer mapped by default. To enable it:
+
+1. Open **Settings → Button Mapping** and assign any spare button to `Voice Input`.
+2. Press that button — the floating HUD shows "Listening..." with a live waveform.
+3. Speak your prompt (auto-detects Chinese and English).
+4. HUD shows transcription with confirm/cancel options.
+5. Press **A / ✕** to paste to terminal, or **B / ○** to cancel.
+
+> Backend is `whisper.cpp` (install with `brew install whisper-cpp`). The system `SFSpeechRecognizer` path is currently stubbed.
 
 ### Quick Prompts
 
-Hold a trigger (LT or RT) and press a face button for instant commands:
+Hold a trigger (LT or RT) and press a face button for instant commands. The HUD pops a cheat sheet as soon as you hold the trigger.
 
 | Trigger | Button | Command |
 |---------|--------|---------|
-| LT | A | `showtime` |
-| LT | B | `fix the failing tests` |
-| LT | X | `continue` |
-| LT | Y | `undo the last change` |
+| LT | A | `codex` |
+| LT | B | `claude` |
+| LT | X | `copilot` |
+| LT | Y | `gemini` |
 | RT | A | `run the tests` |
 | RT | B | `show me the diff` |
-| RT | X | `looks good, commit this` |
-| RT | Y | `add types and documentation` |
+| RT | X | `looks good, commit this and push` |
+| RT | Y | `refactor this to be cleaner` |
 
-### Command Combos
+LT is the "switch AI assistant" trigger; RT is the dev workflow trigger. Both are fully editable in **Settings → Prompts**.
 
-Hold both triggers (LT+RT) to enter command mode. Input directional sequences to trigger actions:
+### Trigger Chords
 
-**Helldivers 2 style** (D-pad only):
-- ↑ ↓ → ← ↑ → "Reinforce" command
-
-**Fighting game style** (D-pad + button):
-- ↓ → A → "Hadouken" style action
+| Chord | Effect |
+|-------|--------|
+| **LT + LB** | Fires `⌘⌥` — summons Typeless or any overlay that listens for the modifier-only chord |
+| **LT + RT** (tap together) | Toggles left-stick mouse-cursor mode on/off; persisted across launches |
+| **LT + RT + Select** | Quits the app (safety override regardless of other mappings) |
 
 ## Configuration
 
-Click the menu bar icon > **Settings** to open the settings window. The settings panel uses a dark-themed card layout with five tabs.
+Click the menu bar icon > **Settings** to open the settings window. The settings panel uses a dark-themed card layout with four tabs: **General**, **Button Mapping**, **Prompts**, and **Speech**.
 
 ### General
 
@@ -235,9 +245,9 @@ Choose your **controller style** — Xbox or PS5. This changes all button labels
 
 ### Button Mapping
 
-All button bindings organized by region: Shoulders, Face Buttons, Navigation, and System & Sticks. Each button has a dropdown to pick its action. LT/RT (L2/R2) serve as modifier keys, so their quick prompts are managed in the Preset Prompts tab. If you assign a button to `Combo`, the row expands to show the keyboard shortcut used to open an overlay window.
+All button bindings organized by region: Shoulders, Face Buttons, Navigation, and System & Sticks. Each button has a dropdown to pick its action. LT/RT (L2/R2) serve as modifier keys, so their quick prompts are managed in the Prompts tab. If you assign a button to `Combo`, the row expands to show the keyboard shortcut that button will fire (e.g. `⌘W`, `⌘⇧]`).
 
-### Preset Prompts
+### Prompts
 
 The left panel lists all quick prompt slots (LT+A, LT+B, RT+A, etc.); the right panel is a focused editor. Each slot can use a preset prompt or custom text, with live character count and preview.
 
@@ -245,25 +255,16 @@ The left panel lists all quick prompt slots (LT+A, LT+B, RT+A, etc.); the right 
 
 | Trigger | Prompt |
 |---------|--------|
-| LT + A | showtime |
-| LT + B | fix the failing tests |
-| LT + X | continue |
-| LT + Y | undo the last change |
-| RT + A | run the tests |
-| RT + B | show me the diff |
-| RT + X | looks good, commit this |
-| RT + Y | add types and documentation |
+| LT + A | `codex` |
+| LT + B | `claude` |
+| LT + X | `copilot` |
+| LT + Y | `gemini` |
+| RT + A | `run the tests` |
+| RT + B | `show me the diff` |
+| RT + X | `looks good, commit this and push` |
+| RT + Y | `refactor this to be cleaner` |
 
-### Command Combos
-
-Hold both triggers (LT+RT / L2+R2) to enter command mode. Input directional sequences to trigger preset prompts — two styles available:
-
-- **Helldivers 2** — D-pad only sequences (e.g. ↑ ↓ → ← ↑ for "Reinforce")
-- **Fighting Game** — D-pad + face button finisher (e.g. ↓ → A for "Hadouken")
-
-A button-based input editor lets you build sequences by clicking, no Unicode typing needed. The settings UI detects and warns about prefix conflicts between combos.
-
-### Speech Recognition
+### Speech
 
 A top-level Voice Pipeline status bar shows engine, binary install state, model status, and LLM cleanup toggle at a glance. Below are two cards:
 
@@ -272,11 +273,11 @@ A top-level Voice Pipeline status bar shows engine, binary install state, model 
 
 ## Voice Input Flow
 
-1. Press **L3 / R3** (stick click)
-2. Floating HUD shows "Listening..." with a live waveform
-3. Speak your prompt (auto-detects Chinese and English)
-4. HUD shows transcription with confirm/cancel options
-5. Press **A / ✕** to paste to terminal, or **B / ○** to cancel
+1. In **Settings → Button Mapping**, assign any spare button to the `Voice Input` action.
+2. Press that button — the floating HUD shows "Listening..." with a live waveform.
+3. Speak your prompt (auto-detects Chinese and English).
+4. HUD shows transcription with confirm/cancel options.
+5. Press **A / ✕** to paste to terminal, or **B / ○** to cancel.
 
 ## Vibe Island / Overlay Navigation
 
@@ -300,7 +301,7 @@ Use this when you want a controller button to open a keyboard-driven overlay suc
 > This is a macOS limitation. Bind another button to `Combo` and use that button to launch the overlay shortcut.
 
 **Q: Voice input is not working**
-> Check that Speech Recognition permission is granted in System Settings > Privacy & Security > Speech Recognition. For better quality, install whisper.cpp with `brew install whisper-cpp`.
+> Install whisper.cpp with `brew install whisper-cpp`, then in the **Speech** settings tab download a model. The system `SFSpeechRecognizer` path is currently stubbed, so whisper is required for voice input.
 
 **Q: Controller not detected**
 > Make sure your controller is Mac-compatible. Xbox and PS5 controllers work best. MFi controllers should work but may have limited button support.
@@ -351,16 +352,17 @@ For detailed system architecture, module relationships, and data flow documentat
 Sources/ClaudeGamepad/
 ├── main.swift              # Entry point (NSApplication.shared.run())
 ├── AppDelegate.swift       # Menu bar icon, permission handling
+├── AppResources.swift      # Bundle-aware resource loader (.app vs CLI)
 ├── GamepadManager.swift    # Central coordinator, input routing
-├── KeySimulator.swift     # Keyboard event generation
+├── KeySimulator.swift      # Keyboard + mouse event generation (CGEvent)
 ├── OverlayPanel.swift      # Floating HUD + WaveformView
-├── SpeechEngine.swift      # SFSpeechRecognizer wrapper
+├── SpeechEngine.swift      # SFSpeechRecognizer wrapper (stubbed, see CLAUDE.md)
 ├── WhisperEngine.swift     # whisper.cpp CLI wrapper
 ├── LLMRefiner.swift        # OpenAI-compatible API client
 ├── ButtonMapping.swift     # Configuration data model
-├── SpeechSettings.swift   # Voice configuration model
+├── SpeechSettings.swift    # Voice configuration model
 ├── GamepadConfigView.swift # Visual button editor component
-└── SettingsWindow.swift   # Settings UI + ComboInputEditor
+└── SettingsWindow.swift    # Settings UI (4 tabs)
 ```
 
 ## License
