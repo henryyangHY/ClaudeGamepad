@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Gamepad — Code from Your Couch</title>
+<meta name="description" content="A native macOS menu bar app that lets you control Claude Code with a game controller. Xbox, PS5 DualSense, and MFi support, plus voice input.">
+<style>
+  :root{
+    --bg:#070711; --bg-alt:#05050f; --card:#0d0d14; --border:#1f2937;
+    --purple:#7c3aed; --purple-lt:#a78bfa; --cyan:#06b6d4; --cyan-lt:#67e8f9;
+    --green:#00ff88; --green-text:#10b981; --text:#e5e7eb; --muted:#9ca3af; --dim:#6b7280; --faint:#4b5563;
+    --nav-bg: rgba(7,7,17,0.85);
+    --glow-opacity: 0.16;
+    --badge-bg: rgba(255,255,255,0.04);
+  }
+  :root[data-gamepad-theme="light"]{
+    --bg:#faf9fd; --bg-alt:#f2effa; --card:#ffffff; --border:#e4e0ee;
+    --purple:#7c3aed; --purple-lt:#6d28d9; --cyan:#0891b2; --cyan-lt:#0e7490;
+    --green:#22c55e; --green-text:#059669; --text:#111827; --muted:#374151; --dim:#52525b; --faint:#6b7280;
+    --nav-bg: rgba(250,249,253,0.85);
+    --glow-opacity: 0.10;
+    --badge-bg: rgba(17,24,39,0.03);
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',Consolas,Menlo,ui-monospace,monospace;
+    line-height:1.6; overflow-x:hidden; transition:background .3s ease, color .3s ease;
+  }
+  a{ cursor:pointer; }
+  ::selection{ background:rgba(124,58,237,0.4); }
+
+  /* ambient glow background */
+  .glow{ position:fixed; inset:0; z-index:-1; pointer-events:none; }
+  .glow::before, .glow::after{
+    content:''; position:absolute; width:520px; height:520px; border-radius:50%;
+    filter:blur(120px); opacity:var(--glow-opacity); transition:opacity .3s ease;
+  }
+  .glow::before{ background:var(--purple); top:-160px; left:-120px; }
+  .glow::after{ background:var(--cyan); bottom:-200px; right:-140px; }
+
+  /* ─── NAV ─── */
+  nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 48px; border-bottom:1px solid var(--border);
+    background:var(--nav-bg); backdrop-filter:blur(12px);
+    position:sticky; top:0; z-index:100; transition:background .3s ease, border-color .3s ease;
+  }
+  .nav-logo{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; }
+  .nav-right{ display:flex; align-items:center; gap:14px; }
+  .theme-toggle{
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--muted); font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:.2s; line-height:1;
+  }
+  .theme-toggle:hover{ border-color:var(--purple-lt); color:var(--text); }
+  .nav-dot{ width:8px; height:8px; border-radius:50%; background:var(--faint); transition:background .3s, box-shadow .3s; }
+  .nav-dot.on{ background:var(--green); box-shadow:0 0 8px var(--green); }
+  .nav-links{ display:flex; gap:28px; font-size:13px; color:var(--muted); }
+  .nav-links a{ color:var(--muted); text-decoration:none; position:relative; padding-bottom:2px; transition:color .2s; }
+  .nav-links a::after{ content:''; position:absolute; left:0; bottom:-2px; width:0; height:1px; background:var(--purple-lt); transition:width .2s; }
+  .nav-links a:hover{ color:var(--text); }
+  .nav-links a:hover::after{ width:100%; }
+  .nav-cta{ background:var(--purple); color:#fff; padding:7px 16px; border-radius:6px; font-size:13px; font-weight:600; text-decoration:none; transition:transform .15s, box-shadow .15s; }
+  .nav-cta:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(124,58,237,0.4); }
+
+  /* ─── HERO ─── */
+  .hero{
+    display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center;
+    padding:88px 48px 80px; max-width:1140px; margin:0 auto; min-height:520px;
+  }
+  .hero-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.3);
+    color:var(--purple-lt); padding:4px 12px; border-radius:20px;
+    font-size:11px; font-weight:600; letter-spacing:0.5px; margin-bottom:20px;
+  }
+  .pulse-dot{ width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .hero-title{ font-size:46px; font-weight:800; line-height:1.12; color:var(--text); margin-bottom:16px; letter-spacing:-1px; }
+  .hero-title span{ background:linear-gradient(90deg,var(--purple-lt),var(--cyan-lt)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .hero-sub{ color:var(--dim); font-size:16px; line-height:1.65; margin-bottom:32px; max-width:440px; }
+  .hero-actions{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .btn-primary{
+    background:linear-gradient(135deg,var(--purple),#6d28d9); color:#fff; padding:13px 24px;
+    border-radius:8px; font-size:14px; font-weight:700; text-decoration:none; border:none;
+    box-shadow:0 4px 20px rgba(124,58,237,0.35); transition:transform .15s, box-shadow .15s;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-primary:hover{ transform:translateY(-2px); box-shadow:0 8px 28px rgba(124,58,237,0.5); }
+  .btn-secondary{
+    display:flex; align-items:center; gap:6px; border:1px solid #374151; color:var(--muted);
+    padding:12px 20px; border-radius:8px; font-size:14px; font-weight:500; text-decoration:none;
+    transition:border-color .15s, color .15s;
+  }
+  .btn-secondary:hover{ border-color:var(--purple-lt); color:var(--text); }
+  .hero-meta{ display:flex; gap:16px; margin-top:26px; flex-wrap:wrap; }
+  .hero-meta-item{ font-size:11px; color:var(--faint); display:flex; align-items:center; gap:4px; }
+
+  /* Terminal mockup */
+  /* terminal chrome is always dark, independent of page theme */
+  .terminal{
+    background:#0d0d12; border:1px solid #1f2937; border-radius:12px; overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.1);
+  }
+  .terminal-header{ background:#161622; padding:10px 16px; display:flex; align-items:center; gap:6px; border-bottom:1px solid #1f2937; }
+  .dot{ width:10px; height:10px; border-radius:50%; }
+  .dot-r{ background:#ef4444; } .dot-y{ background:#f59e0b; } .dot-g{ background:#10b981; }
+  .terminal-title{ font-size:11px; color:#4b5563; margin-left:8px; }
+  .terminal-body{ padding:20px; font-size:12px; line-height:1.7; min-height:230px; }
+  .t-dim{ color:#4b5563; } .t-white{ color:#e5e7eb; } .t-green{ color:#10b981; }
+  .t-purple{ color:#a78bfa; } .t-cyan{ color:#67e8f9; } .t-yellow{ color:#fbbf24; }
+  .typing-line{ display:flex; align-items:center; gap:2px; }
+  .caret{ display:inline-block; width:6px; height:13px; background:#a78bfa; animation:blink 1s step-end infinite; margin-left:2px; }
+  @keyframes blink{ 50%{ opacity:0; } }
+  .gamepad-hud{
+    margin-top:16px; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.2);
+    border-radius:8px; padding:10px 14px;
+  }
+  .hud-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .hud-btn{ display:flex; align-items:center; gap:4px; font-size:10px; color:#9ca3af; }
+  .btn-label{ background:#374151; color:#e5e7eb; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; }
+  .btn-label.purple{ background:rgba(124,58,237,0.3); color:#a78bfa; }
+  .btn-label.cyan{ background:rgba(6,182,212,0.2); color:#67e8f9; }
+  .btn-label.green{ background:rgba(16,185,129,0.2); color:#6ee7b7; }
+
+  /* style toggle */
+  .style-toggle{ display:inline-flex; border:1px solid var(--border); border-radius:20px; padding:3px; margin-top:22px; gap:2px; }
+  .style-toggle button{
+    background:transparent; border:none; color:var(--dim); font-size:11px; font-weight:600;
+    padding:5px 14px; border-radius:16px; cursor:pointer; transition:.2s; font-family:inherit;
+  }
+  .style-toggle button.active{ background:rgba(124,58,237,0.25); color:var(--purple-lt); }
+
+  /* ─── reveal-on-scroll ─── */
+  .reveal{ opacity:0; transform:translateY(24px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in{ opacity:1; transform:translateY(0); }
+
+  /* ─── SECTIONS shared ─── */
+  .section-label{ font-size:11px; color:var(--purple); letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; font-weight:700; }
+  .section-title{ font-size:32px; font-weight:700; color:var(--text); margin-bottom:8px; letter-spacing:-0.3px; }
+  .section-sub{ color:var(--dim); font-size:15px; margin-bottom:48px; }
+  .section-divider{ border:none; border-top:1px solid #111827; }
+
+  /* ─── FEATURES ─── */
+  .features{ padding:80px 48px; max-width:1140px; margin:0 auto; }
+  .feature-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .feature-card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:28px;
+    transition:border-color .25s, transform .25s, box-shadow .25s;
+  }
+  .feature-card:hover{ border-color:rgba(124,58,237,0.5); transform:translateY(-4px); box-shadow:0 12px 30px rgba(0,0,0,0.35); }
+  .feature-icon{ font-size:28px; margin-bottom:14px; }
+  .feature-title{ font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px; }
+  .feature-desc{ font-size:13px; color:var(--dim); line-height:1.65; }
+  .feature-desc code{ background:#1f2937; color:#e5e7eb; padding:1px 5px; border-radius:3px; font-size:11px; }
+  .feature-tag{ display:inline-block; margin-top:12px; font-size:10px; padding:2px 8px; border-radius:20px; background:rgba(124,58,237,0.12); color:var(--purple-lt); border:1px solid rgba(124,58,237,0.2); }
+
+  /* ─── CONTROLLER MAP ─── */
+  .mapper{ padding:80px 48px; max-width:1140px; margin:0 auto; }
+  .mapper-grid{ display:grid; grid-template-columns:1.1fr 1fr; gap:40px; align-items:center; }
+  .pad-wrap{ position:relative; display:flex; justify-content:center; }
+  .pad-tooltip{
+    position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+    background:var(--card); border:1px solid rgba(124,58,237,0.5); border-radius:8px;
+    padding:8px 14px; font-size:12px; white-space:nowrap; opacity:0; pointer-events:none;
+    transition:opacity .15s, transform .15s; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:5;
+  }
+  .pad-tooltip.show{ opacity:1; transform:translateX(-50%) translateY(-8px); }
+  .pad-tooltip b{ color:var(--purple-lt); }
+  .padnode{
+    fill:#161622; stroke:#374151; stroke-width:1.5; cursor:pointer; transition:fill .15s, stroke .15s;
+  }
+  .padnode:hover, .padnode.active{ fill:rgba(124,58,237,0.35); stroke:var(--purple-lt); }
+  .pad-label{ fill:#9ca3af; font-size:10px; font-weight:700; font-family:inherit; pointer-events:none; }
+  .map-legend{ display:flex; flex-direction:column; gap:10px; }
+  .map-row{ display:flex; align-items:center; gap:12px; padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); transition:border-color .2s; }
+  .map-row.active{ border-color:var(--purple-lt); }
+  .map-row .k{ font-size:11px; font-weight:700; background:#374151; color:var(--text); padding:2px 8px; border-radius:4px; min-width:34px; text-align:center; }
+  .map-row .v{ font-size:13px; color:var(--muted); }
+
+  /* ─── SCREENSHOTS ─── */
+  .screenshots{ padding:80px 48px; background:var(--bg-alt); }
+  .screenshots-inner{ max-width:1140px; margin:0 auto; }
+  .screenshot-tabs{ display:flex; gap:4px; margin-bottom:24px; flex-wrap:wrap; }
+  .tab{ padding:7px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid transparent; color:var(--dim); background:transparent; font-family:inherit; transition:.2s; }
+  .tab.active{ background:rgba(124,58,237,0.15); border-color:rgba(124,58,237,0.4); color:var(--purple-lt); }
+  .tab:hover:not(.active){ color:var(--text); }
+  .screenshot-stage{ background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .screenshot-header{ background:#161622; padding:9px 14px; display:flex; align-items:center; gap:6px; border-bottom:1px solid #1f2937; }
+  .screenshot-header span{ font-size:11px; color:#4b5563; margin-left:6px; }
+  .screenshot-body{ padding:16px; }
+  .screenshot-body img{ width:100%; border-radius:8px; display:block; }
+  .screenshot-caption{ font-size:12px; color:var(--dim); margin-top:10px; }
+
+  /* ─── INSTALL ─── */
+  .install{ padding:88px 48px; max-width:860px; margin:0 auto; text-align:center; }
+  .install-title{ font-size:34px; font-weight:800; color:var(--text); margin-bottom:8px; letter-spacing:-0.5px; }
+  .install-title span{ background:linear-gradient(90deg,var(--purple-lt),var(--cyan-lt)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .install-sub{ color:var(--dim); font-size:15px; margin-bottom:36px; }
+  .code-block{ background:#0d0d12; border:1px solid #1f2937; border-radius:10px; padding:20px 24px; text-align:left; margin-bottom:28px; font-size:13px; line-height:1.8; position:relative; }
+  .code-line-comment{ color:#4b5563; }
+  .code-line-cmd{ color:#e5e7eb; }
+  .code-line-cmd .code-dollar{ color:#a78bfa; }
+  .copy-btn{
+    position:absolute; top:14px; right:14px; background:#1f2937; border:1px solid #374151; color:#9ca3af;
+    font-size:11px; padding:5px 10px; border-radius:6px; cursor:pointer; font-family:inherit; transition:.15s;
+  }
+  .copy-btn:hover{ border-color:#a78bfa; color:#e5e7eb; }
+  .req-badges{ display:flex; justify-content:center; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
+  .badge{ display:inline-flex; align-items:center; gap:4px; background:var(--badge-bg); border:1px solid var(--border); color:var(--dim); padding:4px 12px; border-radius:20px; font-size:11px; }
+  .install-actions{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+  /* ─── FOOTER ─── */
+  footer{ border-top:1px solid var(--border); padding:26px 48px; text-align:center; color:var(--faint); font-size:12px; }
+  footer a{ color:var(--dim); text-decoration:none; }
+  footer a:hover{ color:var(--purple-lt); }
+
+  @media (max-width: 860px){
+    .hero{ grid-template-columns:1fr; padding-top:56px; }
+    .feature-grid{ grid-template-columns:1fr; }
+    .mapper-grid{ grid-template-columns:1fr; }
+    nav{ padding:14px 20px; }
+    .nav-links{ display:none; }
+    .hero, .features, .mapper, .screenshots-inner, .install{ padding-left:20px; padding-right:20px; }
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-dot" id="navDot"></div>
+    <span>Claude Gamepad</span>
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#mapping">Button Mapping</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#install">Install</a>
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark theme">🌙</button>
+    <a href="https://github.com/henryyangHY/ClaudeGamepad" target="_blank" rel="noopener" class="nav-cta">View on GitHub</a>
+  </div>
+</nav>
+
+<!-- ① HERO -->
+<section>
+  <div class="hero">
+    <div>
+      <div class="hero-badge"><span class="pulse-dot"></span> Controller Detected</div>
+      <h1 class="hero-title">Code from<br/><span>Your Couch</span></h1>
+      <p class="hero-sub">
+        A native macOS menu bar app that lets you control <strong style="color:var(--text)">Claude Code</strong> with a game controller.
+        Lean back, plug in, and vibe code — hands off the keyboard, eyes still on the terminal.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/henryyangHY/ClaudeGamepad" target="_blank" rel="noopener" class="btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View Source on GitHub
+        </a>
+      </div>
+      <div class="hero-meta">
+        <span class="hero-meta-item">🍎 macOS 14+</span>
+        <span class="hero-meta-item">🎮 Xbox · PS5 · MFi</span>
+        <span class="hero-meta-item">⚡ Swift · Native</span>
+        <span class="hero-meta-item" style="color:var(--green-text);">MIT License</span>
+      </div>
+
+      <div class="style-toggle" id="styleToggle">
+        <button data-style="xbox" class="active">Xbox labels</button>
+        <button data-style="ps5">PS5 labels</button>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-header">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <span class="terminal-title">claude — terminal</span>
+      </div>
+      <div class="terminal-body">
+        <div class="t-dim">$ claude</div>
+        <div class="t-white" style="margin-top:6px;">╭─────────────────────────────╮</div>
+        <div class="t-white">│  ✻ Welcome to Claude Code!  │</div>
+        <div class="t-white">│                             │</div>
+        <div class="t-white">│  How can I help you today?  │</div>
+        <div class="t-white">╰─────────────────────────────╯</div>
+        <div style="margin-top:10px;" class="t-dim">──────────────────────────────</div>
+        <div style="margin-top:6px;" class="t-yellow typing-line"><span id="typedPrompt">◉ Refactor auth module</span><span class="caret"></span></div>
+        <div class="t-dim" style="font-size:11px;">&nbsp;&nbsp;Analyzing 12 files...</div>
+        <div class="gamepad-hud">
+          <div style="font-size:9px;color:var(--purple);margin-bottom:6px;letter-spacing:1px;">🎮 GAMEPAD ACTIVE</div>
+          <div class="hud-row">
+            <div class="hud-btn"><span class="btn-label green" id="hudA">A</span> Accept</div>
+            <div class="hud-btn"><span class="btn-label" id="hudB">B</span> Cancel</div>
+            <div class="hud-btn"><span class="btn-label purple" id="hudL3">L3</span> 🎙 Voice</div>
+          </div>
+          <div class="hud-row" style="margin-top:5px;">
+            <div class="hud-btn"><span class="btn-label cyan" id="hudLTA">LT+A</span> claude</div>
+            <div class="hud-btn"><span class="btn-label" id="hudRTB">RT+B</span> show me the diff</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ② FEATURES -->
+<section class="features" id="features">
+  <div class="section-label reveal">Features</div>
+  <h2 class="section-title reveal">Everything you need to code hands-free</h2>
+  <p class="section-sub reveal">Native Swift + AppKit. No Electron. No Python. Just plug in and go.</p>
+  <div class="feature-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon">🎮</div>
+      <div class="feature-title">Plug &amp; Play Controllers</div>
+      <div class="feature-desc">Auto-detects Xbox, PS5 DualSense, and any MFi-compatible controller via <code>GCController</code>. Switch between Xbox and PS5 label themes across the entire UI. Zero configuration required.</div>
+      <div class="feature-tag">GCController API</div>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">🎙</div>
+      <div class="feature-title">Voice Input Pipeline</div>
+      <div class="feature-desc">Wire any button to Voice Input. Auto-detects Chinese and English, transcribes locally with <code>whisper.cpp</code>, with optional LLM refinement via Ollama or any OpenAI-compatible endpoint.</div>
+      <div class="feature-tag">whisper.cpp · Ollama</div>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">Quick Prompts</div>
+      <div class="feature-desc">Hold LT or RT and press a face button to fire preset prompts instantly — <code>run the tests</code>, <code>show me the diff</code>, <code>looks good, commit this and push</code>. All 8 slots fully customizable.</div>
+      <div class="feature-tag">8 configurable slots</div>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">🕹</div>
+      <div class="feature-title">Combo &amp; Overlay Actions</div>
+      <div class="feature-desc">Assign any button to a keyboard <code>Combo</code> (e.g. <code>⌘W</code>, <code>⌘⇧]</code>) to drive shortcuts and overlays directly, plus a floating HUD that shows live button feedback and transcription.</div>
+      <div class="feature-tag">Fully remappable</div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ③ INTERACTIVE BUTTON MAPPING -->
+<section class="mapper" id="mapping">
+  <div class="section-label reveal">Button Mapping</div>
+  <h2 class="section-title reveal">Hover a button to see what it does</h2>
+  <p class="section-sub reveal">This is the actual default mapping — every one of these is reassignable in Settings.</p>
+
+  <div class="mapper-grid reveal">
+    <div class="pad-wrap">
+      <div class="pad-tooltip" id="padTooltip"></div>
+      <svg width="380" height="260" viewBox="0 0 380 260">
+        <!-- body -->
+        <path d="M70,110 Q70,50 150,50 L230,50 Q310,50 310,110 L330,180 Q335,220 300,225 Q270,228 250,195 L230,170 L150,170 L130,195 Q110,228 80,225 Q45,220 50,180 Z"
+              fill="#0d0d14" stroke="#1f2937" stroke-width="2"/>
+        <!-- d-pad -->
+        <g class="padnode" data-key="dpad" data-action="Arrow keys" data-label="D-Pad">
+          <rect x="95" y="95" width="16" height="46" rx="3" fill="#161622" stroke="#374151"/>
+          <rect x="80" y="110" width="46" height="16" rx="3" fill="#161622" stroke="#374151"/>
+        </g>
+        <text class="pad-label" x="103" y="150" text-anchor="middle">D-PAD</text>
+
+        <!-- face buttons -->
+        <circle class="padnode" data-key="Y" data-action="Reject (n + Enter)" data-label="Y / △" cx="255" cy="95" r="11"/>
+        <circle class="padnode" data-key="X" data-action="Accept (y + Enter)" data-label="X / □" cx="234" cy="116" r="11"/>
+        <circle class="padnode" data-key="B" data-action="Ctrl+C (interrupt)" data-label="B / ○" cx="276" cy="116" r="11"/>
+        <circle class="padnode" data-key="A" data-action="Enter (confirm)" data-label="A / ✕" cx="255" cy="137" r="11"/>
+        <text class="pad-label" x="255" y="160" text-anchor="middle">FACE BTNS</text>
+
+        <!-- shoulders -->
+        <rect class="padnode" data-key="LB" data-action="⌘W (close window/tab)" data-label="LB / L1" x="70" y="30" width="46" height="14" rx="4"/>
+        <rect class="padnode" data-key="RB" data-action="Escape" data-label="RB / R1" x="264" y="30" width="46" height="14" rx="4"/>
+        <rect class="padnode" data-key="LT" data-action="Modifier: quick prompts + chords" data-label="LT / L2" x="70" y="12" width="46" height="14" rx="4"/>
+        <rect class="padnode" data-key="RT" data-action="Modifier: quick prompts" data-label="RT / R2" x="264" y="12" width="46" height="14" rx="4"/>
+
+        <!-- sticks -->
+        <circle class="padnode" data-key="L3" data-action="Left mouse click (mouse mode)" data-label="L3" cx="140" cy="195" r="16"/>
+        <circle class="padnode" data-key="R3" data-action="⌘W (close window/tab)" data-label="R3" cx="220" cy="205" r="16"/>
+
+        <!-- start/select -->
+        <rect class="padnode" data-key="Start" data-action="⌘⇧] (next terminal tab)" data-label="Start / Options" x="210" y="85" width="20" height="10" rx="3"/>
+        <rect class="padnode" data-key="Select" data-action="⌘T (new tab)" data-label="Select / Create" x="150" y="85" width="20" height="10" rx="3"/>
+      </svg>
+    </div>
+
+    <div class="map-legend" id="mapLegend">
+      <div class="map-row" data-key="dpad"><span class="k">D-Pad</span><span class="v">Arrow keys</span></div>
+      <div class="map-row" data-key="A"><span class="k">A / ✕</span><span class="v">Enter (confirm)</span></div>
+      <div class="map-row" data-key="B"><span class="k">B / ○</span><span class="v">Ctrl+C (interrupt)</span></div>
+      <div class="map-row" data-key="X"><span class="k">X / □</span><span class="v">Accept (y + Enter)</span></div>
+      <div class="map-row" data-key="Y"><span class="k">Y / △</span><span class="v">Reject (n + Enter)</span></div>
+      <div class="map-row" data-key="LB"><span class="k">LB / L1</span><span class="v">⌘W — close window/tab</span></div>
+      <div class="map-row" data-key="RB"><span class="k">RB / R1</span><span class="v">Escape</span></div>
+      <div class="map-row" data-key="LT"><span class="k">LT / L2</span><span class="v">Modifier — quick prompts &amp; chords</span></div>
+      <div class="map-row" data-key="RT"><span class="k">RT / R2</span><span class="v">Modifier — quick prompts</span></div>
+      <div class="map-row" data-key="L3"><span class="k">L3</span><span class="v">Left click (mouse-cursor mode)</span></div>
+      <div class="map-row" data-key="R3"><span class="k">R3</span><span class="v">⌘W — close window/tab</span></div>
+      <div class="map-row" data-key="Start"><span class="k">Start</span><span class="v">⌘⇧] — next terminal tab</span></div>
+      <div class="map-row" data-key="Select"><span class="k">Select</span><span class="v">⌘T — new tab</span></div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ④ SCREENSHOTS -->
+<section class="screenshots" id="screenshots">
+  <div class="screenshots-inner">
+    <div class="section-label reveal">Screenshots</div>
+    <h2 class="section-title reveal">See it in action</h2>
+    <p class="section-sub reveal">Dark-themed settings, a clean button editor, and a non-intrusive floating HUD.</p>
+
+    <div class="screenshot-tabs reveal" id="shotTabs">
+      <button class="tab active" data-target="button-mapping">Button Mapping</button>
+      <button class="tab" data-target="quick-prompts">Preset Prompts</button>
+      <button class="tab" data-target="speech-recognition">Voice Pipeline</button>
+      <button class="tab" data-target="menu-bar">Menu Bar</button>
+    </div>
+
+    <div class="screenshot-stage reveal">
+      <div class="screenshot-header">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <span id="shotTitle">Button Mapping</span>
+      </div>
+      <div class="screenshot-body">
+        <img id="shotImg" src="screenshots/button-mapping.png" alt="Button Mapping">
+        <div class="screenshot-caption" id="shotCaption">Configure every button — grouped by region for quick scanning and reassignment.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ⑤ INSTALL -->
+<section class="install" id="install">
+  <div class="section-label reveal">Install</div>
+  <h2 class="install-title reveal">Up and running<br/><span>in under 5 minutes</span></h2>
+  <p class="install-sub reveal">Build from source with Swift. No package manager drama. No Electron.</p>
+
+  <div class="req-badges reveal">
+    <span class="badge">🍎 macOS 14.0 Sonoma+</span>
+    <span class="badge">🎮 Xbox · PS5 · MFi</span>
+    <span class="badge" style="color:var(--purple-lt);border-color:#7c3aed33;">Swift 5.9+</span>
+    <span class="badge" style="color:var(--green-text);border-color:#10b98133;">MIT License</span>
+  </div>
+
+  <div class="code-block reveal" id="codeBlock">
+    <button class="copy-btn" id="copyBtn">Copy</button>
+    <div class="code-line-comment"># Clone and build</div>
+    <div class="code-line-cmd"><span class="code-dollar">$</span> git clone https://github.com/henryyangHY/ClaudeGamepad.git</div>
+    <div class="code-line-cmd"><span class="code-dollar">$</span> cd ClaudeGamepad</div>
+    <div class="code-line-cmd"><span class="code-dollar">$</span> ./build-app.sh &amp;&amp; cp -R ClaudeGamepad.app /Applications/</div>
+    <div style="margin-top:12px;" class="code-line-comment"># Optional: higher-quality offline voice</div>
+    <div class="code-line-cmd"><span class="code-dollar">$</span> brew install whisper-cpp</div>
+  </div>
+
+  <div style="font-size:12px;color:var(--faint);margin-bottom:28px;line-height:1.7;" class="reveal">
+    Grant <strong style="color:var(--dim);">Accessibility</strong> when prompted (for keyboard simulation) and
+    <strong style="color:var(--dim);">Speech Recognition</strong> if using voice input.
+    Connect your controller — the menu bar icon turns active.
+  </div>
+
+  <div class="install-actions reveal">
+    <a href="https://github.com/henryyangHY/ClaudeGamepad" target="_blank" rel="noopener" class="btn-primary" style="font-size:15px;padding:14px 28px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Claude Gamepad · MIT License · Built with Swift + AppKit · macOS 14+</p>
+  <p style="margin-top:6px;font-size:11px;">Not affiliated with Anthropic. Fork of <a href="https://github.com/cch123/ClaudeGamepad" target="_blank" rel="noopener">cch123/ClaudeGamepad</a>.</p>
+</footer>
+
+<script>
+  // light / dark theme toggle
+  const themeToggle = document.getElementById('themeToggle');
+  let gamepadTheme = 'dark';
+  function applyGamepadTheme(t){
+    document.documentElement.setAttribute('data-gamepad-theme', t);
+    themeToggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    gamepadTheme = t;
+  }
+  applyGamepadTheme(gamepadTheme);
+  themeToggle.addEventListener('click', ()=>{
+    applyGamepadTheme(gamepadTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  // nav connected-dot + active link highlight
+  const navDot = document.getElementById('navDot');
+  setTimeout(()=>navDot.classList.add('on'), 400);
+
+  // reveal on scroll
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:0.15 });
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // typing effect cycling through prompts
+  const prompts = ['◉ Refactor auth module','◉ run the tests','◉ show me the diff','◉ looks good, commit this and push','◉ Add dark mode toggle'];
+  const typedEl = document.getElementById('typedPrompt');
+  let pIdx = 0, charIdx = prompts[0].length, deleting = false;
+  function tick(){
+    const full = prompts[pIdx];
+    if(!deleting){
+      charIdx++;
+      if(charIdx > full.length){ deleting = true; setTimeout(tick, 1400); return; }
+    } else {
+      charIdx--;
+      if(charIdx < 2){ deleting = false; pIdx = (pIdx+1)%prompts.length; }
+    }
+    typedEl.textContent = full.slice(0, charIdx);
+    setTimeout(tick, deleting ? 28 : 45);
+  }
+  setTimeout(tick, 1200);
+
+  // Xbox / PS5 style toggle
+  const xboxLabels = { hudA:'A', hudB:'B', hudL3:'L3', hudLTA:'LT+A', hudRTB:'RT+B' };
+  const ps5Labels  = { hudA:'✕', hudB:'○', hudL3:'L3', hudLTA:'L2+✕', hudRTB:'R2+○' };
+  document.getElementById('styleToggle').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    document.querySelectorAll('#styleToggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const map = btn.dataset.style === 'ps5' ? ps5Labels : xboxLabels;
+    Object.entries(map).forEach(([id,label])=>{ document.getElementById(id).textContent = label; });
+  });
+
+  // interactive controller diagram
+  const padTooltip = document.getElementById('padTooltip');
+  const legendRows = document.querySelectorAll('.map-row');
+  document.querySelectorAll('.padnode').forEach(node=>{
+    node.addEventListener('mouseenter', ()=>{
+      const key = node.dataset.key, action = node.dataset.action, label = node.dataset.label;
+      padTooltip.innerHTML = '<b>'+label+'</b> '+action;
+      padTooltip.classList.add('show');
+      legendRows.forEach(r=> r.classList.toggle('active', r.dataset.key === key));
+    });
+    node.addEventListener('mouseleave', ()=>{
+      padTooltip.classList.remove('show');
+      legendRows.forEach(r=> r.classList.remove('active'));
+    });
+  });
+  legendRows.forEach(row=>{
+    row.addEventListener('mouseenter', ()=>{
+      const node = document.querySelector('.padnode[data-key="'+row.dataset.key+'"]');
+      if(node){ node.classList.add('active'); }
+    });
+    row.addEventListener('mouseleave', ()=>{
+      const node = document.querySelector('.padnode[data-key="'+row.dataset.key+'"]');
+      if(node){ node.classList.remove('active'); }
+    });
+  });
+
+  // screenshot tabs
+  const shots = {
+    'button-mapping': { title:'Button Mapping', caption:'Configure every button — grouped by region for quick scanning and reassignment.' },
+    'quick-prompts': { title:'Preset Prompts', caption:'Edit all trigger combos from one focused workspace, with live character count and preview.' },
+    'speech-recognition': { title:'Voice Pipeline', caption:'Engine status, binary install state, model download progress, and LLM cleanup toggle at a glance.' },
+    'menu-bar': { title:'Menu Bar', caption:'Lives quietly in the menu bar. Green = controller connected, gray = none detected.' }
+  };
+  document.getElementById('shotTabs').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.tab'); if(!btn) return;
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    const key = btn.dataset.target, data = shots[key];
+    document.getElementById('shotImg').src = 'screenshots/' + key + '.png';
+    document.getElementById('shotImg').alt = data.title;
+    document.getElementById('shotTitle').textContent = data.title;
+    document.getElementById('shotCaption').textContent = data.caption;
+  });
+
+  // copy to clipboard
+  document.getElementById('copyBtn').addEventListener('click', ()=>{
+    const cmds = [
+      'git clone https://github.com/henryyangHY/ClaudeGamepad.git',
+      'cd ClaudeGamepad',
+      './build-app.sh && cp -R ClaudeGamepad.app /Applications/',
+      'brew install whisper-cpp'
+    ].join('\n');
+    navigator.clipboard.writeText(cmds).then(()=>{
+      const btn = document.getElementById('copyBtn');
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(()=>{ btn.textContent = original; }, 1600);
+    });
+  });
+
+  // active nav link on scroll
+  const sections = ['features','mapping','screenshots','install'].map(id=>document.getElementById(id));
+  const navAnchors = document.querySelectorAll('.nav-links a');
+  const navIO = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        navAnchors.forEach(a=>{
+          a.style.color = a.getAttribute('href') === '#'+entry.target.id ? 'var(--text)' : 'var(--muted)';
+        });
+      }
+    });
+  }, { rootMargin:'-40% 0px -50% 0px' });
+  sections.forEach(s=> s && navIO.observe(s));
+</script>
+</body>
+</html>
