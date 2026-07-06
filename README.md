@@ -71,28 +71,8 @@ Connect your controller, focus your Claude Code terminal, and start coding!
 - **macOS native** - pure Swift + AppKit, no Electron, no Python
 
 ## Demo
+https://github.com/user-attachments/assets/132b5f6d-abe1-4628-b6ca-853a30fc6a38
 
-<!--
-  HOW TO EMBED THE DEMO VIDEO
-  ---------------------------
-  GitHub does NOT render a player for an .mp4 committed to the repo, and it
-  rejects any single file larger than 100 MB. So do this instead:
-
-    1. Compress the source clip to < 100 MB (aim for < 10 MB so the README
-       loads fast), e.g.:
-         ffmpeg -i "0703.mp4" -vf scale=-2:720 -c:v libx264 -crf 28 \
-                -preset veryfast -c:a aac -b:a 96k demo.mp4
-    2. Open this README on github.com and click the pencil (edit) icon.
-    3. Drag demo.mp4 into the editor. GitHub uploads it and inserts a
-       https://github.com/user-attachments/assets/<id> URL.
-    4. Replace the placeholder line below with that URL (a bare URL on its
-       own line renders as an inline player), then commit.
-
-  The video lives on GitHub's CDN, not in the repo's git history.
--->
-
-<!-- Replace this line with the user-attachments URL from the drag-and-drop upload -->
-_Demo video coming soon — see the comment above for how to embed it._
 
 ## Screenshots
 
