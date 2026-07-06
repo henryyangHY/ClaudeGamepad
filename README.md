@@ -1,13 +1,13 @@
-# Claude Gamepad Controller
+# ClaudeGamepad 
 
 [![macOS](https://img.shields.io/badge/macOS-14.0%2B-orange)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9+-red)](https://swift.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/xargin/ClaudeGamepad?style=social)](https://github.com/xargin/ClaudeGamepad)
+[![GitHub Stars](https://img.shields.io/github/stars/henryyangHY/ClaudeGamepad?style=social)](https://github.com/henryyangHY/ClaudeGamepad)
 
 A native macOS menu bar app that lets you control [Claude Code](https://claude.ai/claude-code) with a game controller. Lean back, vibe code from your couch.
 
-Supports Xbox, PS5 DualSense, and any MFi-compatible controller. Includes voice input via Apple Speech Recognition or local [whisper.cpp](https://github.com/ggerganov/whisper.cpp), with optional LLM-powered speech correction.
+Supports Xbox, PS5 DualSense, and any MFi-compatible controller. Includes voice input Typeless or other local voice-to-text model like whisper with additional settings.
 
 ## Why Claude Gamepad?
 
@@ -23,15 +23,12 @@ Ever wanted to code from your couch? Claude Gamepad brings the comfort of game c
 
 - [Quick Start](#quick-start)
 - [Features](#features)
+- [Demo](#demo)
 - [Screenshots](#screenshots)
 - [Default Button Mapping](#default-button-mapping)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
-- [Voice Input](#voice-input)
-- [Vibe Island / Overlay Navigation](#vibe-island--overlay-navigation)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
 - [Architecture](#architecture)
 - [License](#license)
 
@@ -41,7 +38,7 @@ Get up and running in under 5 minutes:
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/xargin/ClaudeGamepad.git
+git clone https://github.com/henryyangHY/ClaudeGamepad.git
 cd ClaudeGamepad
 swift build -c release
 
@@ -50,7 +47,7 @@ swift run
 
 # 3. Grant permissions when prompted
 # - Accessibility (required, for keyboard / mouse simulation)
-# - Microphone (optional, only if you wire a button to Voice Input via whisper.cpp)
+# - Microphone (optional, only if you wire a button to Voice Input)
 ```
 
 Connect your controller, focus your Claude Code terminal, and start coding!
@@ -72,6 +69,30 @@ Connect your controller, focus your Claude Code terminal, and start coding!
 - **Preset menu** - configurable menu of preset prompts navigated by D-pad
 - **Floating HUD** - non-intrusive overlay shows button feedback and transcription
 - **macOS native** - pure Swift + AppKit, no Electron, no Python
+
+## Demo
+
+<!--
+  HOW TO EMBED THE DEMO VIDEO
+  ---------------------------
+  GitHub does NOT render a player for an .mp4 committed to the repo, and it
+  rejects any single file larger than 100 MB. So do this instead:
+
+    1. Compress the source clip to < 100 MB (aim for < 10 MB so the README
+       loads fast), e.g.:
+         ffmpeg -i "0703.mp4" -vf scale=-2:720 -c:v libx264 -crf 28 \
+                -preset veryfast -c:a aac -b:a 96k demo.mp4
+    2. Open this README on github.com and click the pencil (edit) icon.
+    3. Drag demo.mp4 into the editor. GitHub uploads it and inserts a
+       https://github.com/user-attachments/assets/<id> URL.
+    4. Replace the placeholder line below with that URL (a bare URL on its
+       own line renders as an inline player), then commit.
+
+  The video lives on GitHub's CDN, not in the repo's git history.
+-->
+
+<!-- Replace this line with the user-attachments URL from the drag-and-drop upload -->
+_Demo video coming soon — see the comment above for how to embed it._
 
 ## Screenshots
 
@@ -137,7 +158,7 @@ All mappings are fully customizable in Settings.
 Build a proper macOS app bundle that lives in `/Applications/` and can auto-launch on login — no terminal required after the first build.
 
 ```bash
-git clone https://github.com/xargin/ClaudeGamepad.git
+git clone https://github.com/henryyangHY/ClaudeGamepad.git
 cd ClaudeGamepad
 ./build-app.sh
 cp -R ClaudeGamepad.app /Applications/
@@ -152,7 +173,7 @@ Then open the app once and grant **Accessibility** when prompted.
 ### Option B: Build from Source (CLI)
 
 ```bash
-git clone https://github.com/xargin/ClaudeGamepad.git
+git clone https://github.com/henryyangHY/ClaudeGamepad.git
 cd ClaudeGamepad
 swift build -c release
 # Binary at .build/release/ClaudeGamepad
@@ -264,71 +285,6 @@ The left panel lists all quick prompt slots (LT+A, LT+B, RT+A, etc.); the right 
 | RT + X | `looks good, commit this and push` |
 | RT + Y | `refactor this to be cleaner` |
 
-### Speech
-
-A top-level Voice Pipeline status bar shows engine, binary install state, model status, and LLM cleanup toggle at a glance. Below are two cards:
-
-- **Whisper Local** — select a model (tiny 75MB to large-v3 3.1GB), one-click install binary, one-click download model
-- **LLM Refinement** — configure API URL, API Key, and model name; works with Ollama, LM Studio, or any OpenAI-compatible endpoint
-
-## Voice Input Flow
-
-1. In **Settings → Button Mapping**, assign any spare button to the `Voice Input` action.
-2. Press that button — the floating HUD shows "Listening..." with a live waveform.
-3. Speak your prompt (auto-detects Chinese and English).
-4. HUD shows transcription with confirm/cancel options.
-5. Press **A / ✕** to paste to terminal, or **B / ○** to cancel.
-
-## Vibe Island / Overlay Navigation
-
-Use this when you want a controller button to open a keyboard-driven overlay such as Vibe Island.
-
-1. In **Settings > Button Mapping**, assign any spare button to the `Combo` action.
-2. Configure the keyboard shortcut for that action in the Guide Key Combo controls. The default is `⌘G`.
-3. Trigger that button to open the overlay.
-4. For a short window after the overlay opens, D-pad arrows are routed to the frontmost overlay app instead of your terminal.
-5. If you click back into your terminal, the app stops reclaiming focus and arrow input returns to the terminal path.
-
-## Troubleshooting
-
-**Q: The controller opens Vibe Island but D-pad does nothing**
-> Make sure Accessibility permission is granted and the overlay is actually frontmost after the combo fires.
-
-**Q: The terminal loses focus after using an overlay**
-> Current builds stop routing arrows to the overlay as soon as you manually switch back to the terminal.
-
-**Q: The physical Guide / Home / PS button does not trigger anything**
-> This is a macOS limitation. Bind another button to `Combo` and use that button to launch the overlay shortcut.
-
-**Q: Voice input is not working**
-> Install whisper.cpp with `brew install whisper-cpp`, then in the **Speech** settings tab download a model. The system `SFSpeechRecognizer` path is currently stubbed, so whisper is required for voice input.
-
-**Q: Controller not detected**
-> Make sure your controller is Mac-compatible. Xbox and PS5 controllers work best. MFi controllers should work but may have limited button support.
-
-**Q: Buttons stop working after I update the app**
-> macOS invalidates the Accessibility grant whenever the app binary is replaced. Go to System Settings → Privacy & Security → Accessibility, toggle ClaudeGamepad off and back on.
-
-**Q: The menu bar shows ⚠️ Grant Accessibility to enable buttons**
-> Click that menu item to jump directly to the Accessibility settings page, then add or re-enable ClaudeGamepad.
-
-## Contributing
-
-Contributions are welcome! Please read our guidelines before submitting:
-
-### Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/xargin/ClaudeGamepad.git
-cd ClaudeGamepad
-
-# Build in debug mode
-swift build
-
-# Run with logging
-swift run 2>&1 | tee debug.log
-```
 
 ### Testing
 
@@ -336,13 +292,6 @@ swift run 2>&1 | tee debug.log
 2. Test voice input with both system speech and whisper.cpp
 3. Test all button mappings after making changes
 4. Verify the app works with Claude Code in a real terminal session
-
-### Pull Request Guidelines
-
-- Keep commits atomic and descriptive
-- Update documentation if changing user-facing features
-- Test on macOS 14.0+ before submitting
-- Follow Swift code style conventions
 
 ## Architecture
 
@@ -356,7 +305,7 @@ Sources/ClaudeGamepad/
 ├── GamepadManager.swift    # Central coordinator, input routing
 ├── KeySimulator.swift      # Keyboard + mouse event generation (CGEvent)
 ├── OverlayPanel.swift      # Floating HUD + WaveformView
-├── SpeechEngine.swift      # SFSpeechRecognizer wrapper (stubbed, see CLAUDE.md)
+├── SpeechEngine.swift      # SFSpeechRecognizer wrapper (stubbed / disabled)
 ├── WhisperEngine.swift     # whisper.cpp CLI wrapper
 ├── LLMRefiner.swift        # OpenAI-compatible API client
 ├── ButtonMapping.swift     # Configuration data model

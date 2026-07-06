@@ -17,6 +17,11 @@ ClaudeGamepad.app/
 
 # Claude Code internal files
 .superpowers/
+.claude/
+CLAUDE.md
+
+# Video / demo source files (upload via GitHub drag-and-drop instead)
+*.mp4
 
 # Python (legacy)
 __pycache__/
