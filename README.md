@@ -9,6 +9,10 @@ A native macOS menu bar app that lets you control [Claude Code](https://claude.a
 
 Supports Xbox, PS5 DualSense, and any MFi-compatible controller. Includes voice input Typeless or other local voice-to-text model like whisper with additional settings.
 
+## Demo
+https://github.com/user-attachments/assets/132b5f6d-abe1-4628-b6ca-853a30fc6a38
+
+
 ## Why Claude Gamepad?
 
 Ever wanted to code from your couch? Claude Gamepad brings the comfort of game controllers to AI-assisted coding. No more hunching over your keyboard—use a controller to navigate Claude Code while standing, stretching, or relaxing.
@@ -23,7 +27,6 @@ Ever wanted to code from your couch? Claude Gamepad brings the comfort of game c
 
 - [Quick Start](#quick-start)
 - [Features](#features)
-- [Demo](#demo)
 - [Screenshots](#screenshots)
 - [Default Button Mapping](#default-button-mapping)
 - [Installation](#installation)
@@ -69,9 +72,6 @@ Connect your controller, focus your Claude Code terminal, and start coding!
 - **Preset menu** - configurable menu of preset prompts navigated by D-pad
 - **Floating HUD** - non-intrusive overlay shows button feedback and transcription
 - **macOS native** - pure Swift + AppKit, no Electron, no Python
-
-## Demo
-https://github.com/user-attachments/assets/132b5f6d-abe1-4628-b6ca-853a30fc6a38
 
 
 ## Screenshots
