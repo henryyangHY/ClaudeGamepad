@@ -14,16 +14,16 @@ Claude Gamepad transforms game controller input into keyboard events and text, a
 | Platform | macOS 14.0 (Sonoma)+ |
 | UI Framework | AppKit |
 | Controller API | GameController.framework |
-| Speech Recognition | SFSpeechRecognizer, whisper.cpp |
+| Voice Input | whisper.cpp (external CLI) |
 | Keyboard Simulation | CGEvent ( HID events), AppleScript |
 | Build System | Swift Package Manager |
 
 ### Key System Frameworks
 
 - **GameController** - GCController for gamepad input handling
-- **Speech** - SFSpeechRecognizer for voice-to-text
-- **AVFoundation** - Audio capture for speech recognition
+- **AVFoundation** - Audio capture for voice input
 - **AppKit** - All UI components (NSPanel, NSWindow, NSStatusBar)
+- **Carbon.HIToolbox** - Virtual keycode constants for key simulation
 
 ## System Architecture
 
@@ -79,16 +79,15 @@ The orchestrator that coordinates all subsystems. Acts as the single point of co
 
 **Responsibilities**:
 - GCController discovery and lifecycle management
-- Input event routing based on current mode (normal, voice, preset menu, command mode)
-- Mode state management (voice active, preset menu open, command mode)
-- Callback orchestration for speech engines
+- Input event routing based on current mode (normal, voice, preset menu)
+- Mode state management (voice active, preset menu open)
+- Callback orchestration for the voice engine
 
 **Key States**:
 ```swift
 isVoiceActive: Bool      // Voice input in progress
 isInPresetMenu: Bool     // Preset prompt browser open
-isInCommandMode: Bool   // Combo input mode (LT+RT held)
-ltHeld / rtHeld: Bool   // Trigger modifier keys
+ltHeld / rtHeld: Bool    // Trigger modifier keys
 ```
 
 **Input Flow**:
@@ -129,7 +128,6 @@ Floating HUD that displays feedback without stealing terminal focus.
 - **Listening** - Voice input with waveform visualization
 - **Transcription** - Recognition result with confirm/cancel
 - **PromptSheet** - Trigger cheat sheet (radial button layout)
-- **CommandMode** - Combo input sequence display
 
 **Design**:
 - `NSPanel` with `.nonactivatingPanel` style
@@ -137,40 +135,34 @@ Floating HUD that displays feedback without stealing terminal focus.
 - Positioned at screen bottom center
 - Auto-positions to main screen
 
-### 4. Speech Subsystem
+### 4. Voice Subsystem
 
-**Files**: `SpeechEngine.swift`, `WhisperEngine.swift`, `LLMRefiner.swift`
+**Files**: `WhisperEngine.swift`, `LLMRefiner.swift`, `SpeechEngine.swift`
 
-Three-layer voice recognition pipeline:
+Local voice-to-text pipeline built on whisper.cpp. The legacy system-speech
+path (SpeechEngine) is disabled — see below.
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│   Microphone │───▶│ Speech Engine │───▶│ LLM Refiner │
-│   Input      │    │              │    │  (Optional) │
+│  Microphone │───▶│  whisper.cpp │───▶│ LLM Refiner │
+│  Input      │    │    (CLI)     │    │  (Optional) │
 └─────────────┘    └──────────────┘    └─────────────┘
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-     ┌─────────────┐           ┌─────────────┐
-     │    Apple    │           │  whisper.cpp │
-     │ SFSpeech    │           │   (CLI)      │
-     │ Recognizer  │           │              │
-     └─────────────┘           └─────────────┘
 ```
 
-**SpeechEngine** (System):
-- SFSpeechRecognizer with zh-Hans + en-US fallback
-- Real-time partial results
-- 15-second timeout
-
-**WhisperEngine** (Local):
+**WhisperEngine** (Local, active):
 - External whisper.cpp CLI process
 - Model management (tiny to large-v3)
-- Supports offline operation
+- Fully offline operation
 
 **LLMRefiner** (Optional):
 - OpenAI-compatible API (Ollama, LM Studio)
-- Speech post-processing/correction
+- Transcription post-processing/correction
+
+**SpeechEngine** (disabled stub):
+- No-op. The original SFSpeechRecognizer path is disabled: linking
+  Speech.framework into an unbundled binary crashes on macOS 26 (TCC requires
+  `NSSpeechRecognitionUsageDescription` from an Info.plist the CLI lacks).
+- Voice input routes through WhisperEngine or an external tool (e.g. Typeless).
 
 ### 5. Configuration System
 
@@ -179,7 +171,6 @@ Three-layer voice recognition pipeline:
 **ButtonMapping**:
 - All button action bindings
 - Trigger prompt presets (LT/RT + face)
-- Command combo definitions
 - Controller style (Xbox/PS5 label theme)
 - JSON persistence to `~/Library/Application Support/ClaudeGamepad/config.json`
 
@@ -199,8 +190,7 @@ Dark-themed card-based settings interface with sidebar navigation.
 1. **General** - Controller style selection (Xbox/PS5)
 2. **Button Mapping** - Visual button editor
 3. **Preset Prompts** - Trigger combo editor with preset picker
-4. **Command Combos** - Combo sequence builder with conflict detection
-5. **Speech Recognition** - Engine/model/LLM configuration
+4. **Speech Recognition** - Whisper model + LLM configuration
 
 ## Data Flow
 
@@ -219,8 +209,6 @@ Check State Flags
        │
        ├──▶ isInPresetMenu ──▶ D-pad navigation, A=Select
        │
-       ├──▶ isInCommandMode ──▶ Feed to comboBuffer
-       │
        ├──▶ ltHeld ──▶ Execute LT prompt
        │
        ├──▶ rtHeld ──▶ Execute RT prompt
@@ -237,7 +225,7 @@ Stick Click (L3/R3)
 GamepadManager.startVoiceInput()
        │
        ▼
-SpeechEngine.startListening() / WhisperEngine.startListening()
+WhisperEngine.startListening()
        │
        ▼
 Audio Capture → Recognition
@@ -255,27 +243,6 @@ User confirms with A button
 KeySimulator.pasteString(text)
 ```
 
-### Command Combo Flow
-
-```
-LT + RT held simultaneously
-       │
-       ▼
-enterCommandMode()
-       │
-       ▼
-D-pad / face button inputs → comboBuffer
-       │
-       ▼
-Check against activeCombos (prefix match)
-       │
-       ├──▶ Exact match ──▶ Execute prompt
-       │
-       ├──▶ Partial match ──▶ Show sequence, reset timeout
-       │
-       └──▶ No match ──▶ Show error, reset buffer
-```
-
 ## Directory Structure
 
 ```
@@ -285,13 +252,13 @@ Sources/ClaudeGamepad/
 ├── GamepadManager.swift    # Central coordinator, input routing
 ├── KeySimulator.swift      # Keyboard event generation
 ├── OverlayPanel.swift      # Floating HUD + WaveformView
-├── SpeechEngine.swift      # SFSpeechRecognizer wrapper
+├── SpeechEngine.swift      # Disabled no-op stub (see Voice Subsystem)
 ├── WhisperEngine.swift     # whisper.cpp CLI wrapper
 ├── LLMRefiner.swift        # OpenAI-compatible API client
 ├── ButtonMapping.swift     # Configuration data model
 ├── SpeechSettings.swift    # Voice configuration model
 ├── GamepadConfigView.swift # Visual button editor component
-└── SettingsWindow.swift   # Settings UI + ComboInputEditor
+└── SettingsWindow.swift   # Settings UI
 ```
 
 ## Key Design Patterns
@@ -323,7 +290,6 @@ onAudioLevel: ((Float) -> Void)?
 GamepadManager maintains exclusive state flags:
 - Voice mode blocks other input
 - Preset menu has its own navigation
-- Command mode captures all combo inputs
 
 ### Persistence Model
 
@@ -340,12 +306,12 @@ Configuration stored as JSON in Application Support:
 2. Implement handling in `GamepadManager.executeAction()`
 3. Add UI option in `GamepadConfigView.swift`
 
-### Adding New Speech Engines
+### Adding New Voice Engines
 
-1. Create engine class following SpeechEngine pattern
-2. Add engine type to `SpeechEngineType` enum
+1. Create an engine class following the `WhisperEngine` pattern
+2. Add the engine type to the `SpeechEngineType` enum in `SpeechSettings.swift`
 3. Add engine selection UI in `SettingsWindow.swift`
-4. Wire up in `GamepadManager.startVoiceInput()`
+4. Wire it up in `GamepadManager.startVoiceInput()`
 
 ### Adding Settings Sections
 
